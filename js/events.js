@@ -1,4 +1,4 @@
-import {moveCursor, setCursorSize} from './cursor.js';
+import {moveCursor} from './cursor.js';
 import {clear, draw, floodFill} from './drawing.js';
 import {app, setMousePosition} from './main.js';
 import {activateMovingToolbar, deactivateMovingToolbar, hideToolbar, moveToolbar, showToolbar} from './toolbar.js';
@@ -26,9 +26,8 @@ export function initEvents() {
             e.target.classList.add('active');
 
             const value = e.target.dataset.value;
-            linePreview.style.setProperty('--lineWidth', value + 'px');
+            document.body.style.setProperty('--lineWidth', value + 'px');
             app.lineWidth = parseInt(value);
-            setCursorSize(value);
         }
     });
 
@@ -75,6 +74,7 @@ export function initEvents() {
             app.zoom.scale = app.zoom._steps[currentZoomIndex + indexModifier];
             document.querySelector('.zoom-container .value').innerHTML = app.zoom.scale * 100 + '%';
             app.canvas.style.transform = getCanvasTransform();
+            document.body.style.setProperty('--scale', app.zoom.scale);
         }
     });
 

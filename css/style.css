@@ -23,8 +23,8 @@ svg, img {
 
 #cursor {
     position: fixed;
-    width: 5px;
-    height: 5px;
+    width: calc(var(--lineWidth) * var(--scale));
+    height: calc(var(--lineWidth) * var(--scale));
     border-radius: 50%;
     background-color: transparent;
     border: 1px solid black;
