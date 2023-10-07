@@ -13,11 +13,12 @@ export function draw() {
     } else if (app.currentTool === 'eraser') {
         app.ctx.strokeStyle = 'white';
     }
+    const {x, y} = app.mouse;
 
-    app.ctx.lineTo(app.mouse.x, app.mouse.y);
+    app.ctx.lineTo(x * (1 / app.zoom.scale), y * (1 / app.zoom.scale));
     app.ctx.stroke();
     app.ctx.beginPath();
-    app.ctx.moveTo(app.mouse.x, app.mouse.y);
+    app.ctx.moveTo(x * (1 / app.zoom.scale), y * (1 / app.zoom.scale));
 }
 
 export function clear() {
@@ -40,7 +41,7 @@ function setPixel(imageData, x, y, color) {
     imageData.data[offset] = color[0];
     imageData.data[offset + 1] = color[1];
     imageData.data[offset + 2] = color[2];
-    imageData.data[offset + 3] = color[0];
+    imageData.data[offset + 3] = color[3];
 }
 
 function colorsMatch(a, b) {
@@ -48,6 +49,8 @@ function colorsMatch(a, b) {
 }
 
 export function floodFill(x, y, fillColor) {
+    x = x * (1 / app.zoom.scale);
+    y = y * (1 / app.zoom.scale);
     const imageData = app.ctx.getImageData(0, 0, app.canvas.width, app.canvas.height);
     const targetColor = getPixel(imageData, x, y);
     const stack = [{x, y}];

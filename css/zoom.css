@@ -1,0 +1,51 @@
+.zoom-container {
+    position: fixed;
+    left: 10px;
+    bottom: 10px;
+    width: 100px;
+    height: 40px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    z-index: 1;
+    background: #0078d4;
+    color: #fff;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+
+    .minus, .plus, .value {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: background 0.2s ease-in-out;
+
+    }
+
+    .minus, .plus {
+        width: 30px;
+        flex: 0 0 30px;
+        cursor: pointer;
+
+        &:hover {
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        &.disabled {
+            cursor: default;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        & svg {
+            width: 20px;
+            height: 20px;
+        }
+    }
+
+    .value {
+        cursor: default;
+        width: 100%;
+        font-weight: bold; /* Pogrubiona wartość */
+        font-size: 16px; /* Rozmiar tekstu wartości */
+    }
+}

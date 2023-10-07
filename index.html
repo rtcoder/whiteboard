@@ -4,40 +4,76 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Whiteboard App</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
 <canvas id="whiteboard"></canvas>
-
+<div class="draw-handler"></div>
 <div class="toolbar bottom">
     <div class="move-handler"></div>
     <div class="toolbar-content">
-        <button id="add">+</button>
-        <button class="tool active" id="pen">
-            <img src="./svg/pen.svg">
+        <button id="add">
+            <svg width="800px" height="800px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <g id="Edit / Add_Plus_Square">
+                    <path id="Vector"
+                          d="M8 12H12M12 12H16M12 12V16M12 12V8M4 16.8002V7.2002C4 6.08009 4 5.51962 4.21799 5.0918C4.40973 4.71547 4.71547 4.40973 5.0918 4.21799C5.51962 4 6.08009 4 7.2002 4H16.8002C17.9203 4 18.4801 4 18.9079 4.21799C19.2842 4.40973 19.5905 4.71547 19.7822 5.0918C20.0002 5.51962 20.0002 6.07967 20.0002 7.19978V16.7998C20.0002 17.9199 20.0002 18.48 19.7822 18.9078C19.5905 19.2841 19.2842 19.5905 18.9079 19.7822C18.4805 20 17.9215 20 16.8036 20H7.19691C6.07899 20 5.5192 20 5.0918 19.7822C4.71547 19.5905 4.40973 19.2842 4.21799 18.9079C4 18.4801 4 17.9203 4 16.8002Z"
+                          stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </g>
+            </svg>
         </button>
-        <button class="tool" id="eraser">Gumka</button>
-        <button id="clear">Wyczyść</button>
-        <button class="tool" id="fill">Wiaderko</button>
+        <button class="tool active" id="pen">
+            <svg fill="var(--icon-color)" width="800px" height="800px" viewBox="0 0 32 32"
+                 xmlns="http://www.w3.org/2000/svg">
+                <path d="M 23.90625 3.96875 C 22.859375 3.96875 21.8125 4.375 21 5.1875 L 5.1875 21 L 5.125 21.3125 L 4.03125 26.8125 L 3.71875 28.28125 L 5.1875 27.96875 L 10.6875 26.875 L 11 26.8125 L 26.8125 11 C 28.4375 9.375 28.4375 6.8125 26.8125 5.1875 C 26 4.375 24.953125 3.96875 23.90625 3.96875 Z M 23.90625 5.875 C 24.410156 5.875 24.917969 6.105469 25.40625 6.59375 C 26.378906 7.566406 26.378906 8.621094 25.40625 9.59375 L 24.6875 10.28125 L 21.71875 7.3125 L 22.40625 6.59375 C 22.894531 6.105469 23.402344 5.875 23.90625 5.875 Z M 20.3125 8.71875 L 23.28125 11.6875 L 11.1875 23.78125 C 10.53125 22.5 9.5 21.46875 8.21875 20.8125 Z M 6.9375 22.4375 C 8.136719 22.921875 9.078125 23.863281 9.5625 25.0625 L 6.28125 25.71875 Z"/>
+            </svg>
+        </button>
+        <button class="tool" id="eraser">
+            <svg width="800px" height="800px" viewBox="-2.17 0 80.129 80.129" xmlns="http://www.w3.org/2000/svg">
+                <g id="eraser" transform="translate(-1067.853 -238.567)">
+                    <path d="M1141.749,272.477a6.554,6.554,0,0,0,0-9.229l-22.779-22.779a6.544,6.544,0,0,0-9.225,0l-19.995,19.994,32.007,32.012Z"
+                          fill="#f4f4f4"/>
+                    <path d="M1089.75,260.463l-19.992,19.99a6.543,6.543,0,0,0,0,9.23l22.779,22.774a6.538,6.538,0,0,0,9.228,0l19.992-19.982Z"
+                          fill="#ff5245"/>
+                    <path d="M1101.759,312.464l1.1-1.1-32-32.009-1.106,1.1a6.543,6.543,0,0,0,.005,9.225l22.779,22.774A6.538,6.538,0,0,0,1101.759,312.464Z"
+                          fill="#f43b37"/>
+                </g>
+            </svg>
+        </button>
+        <button id="clear">
+            <svg width="800px" height="800px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 9L15 15" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"
+                      stroke-linejoin="round"/>
+                <path d="M15 9L9 15" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"
+                      stroke-linejoin="round"/>
+                <circle cx="12" cy="12" r="9" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round"/>
+            </svg>
+        </button>
+        <button class="tool" id="fill">
+            <svg fill="var(--icon-color)" width="800px" height="800px" viewBox="0 0 32 32"
+                 xmlns="http://www.w3.org/2000/svg">
+                <path d="M 11.300781 3.3007812 L 9.9003906 4.6992188 L 11.699219 6.5 L 4.8007812 13.400391 C 3.6007812 14.600391 3.6007813 16.499219 4.8007812 17.699219 L 4.9003906 17.800781 L 11.199219 24.099609 C 12.399219 25.299609 14.3 25.299609 15.5 24.099609 L 23.099609 16.5 L 23.800781 15.800781 L 14.099609 6.0996094 L 13.300781 5.3007812 L 13.099609 5.0996094 L 11.300781 3.3007812 z M 13.099609 7.9003906 L 21 15.800781 L 18.800781 18 L 7.8984375 18 L 6.1992188 16.300781 C 5.7992187 15.900781 5.7992187 15.200781 6.1992188 14.800781 L 13.099609 7.9003906 z M 25 19.300781 L 24.199219 20.5 C 24.199219 20.5 23.699609 21.299219 23.099609 22.199219 C 22.799609 22.699219 22.600391 23.099609 22.400391 23.599609 C 22.200391 24.099609 22 24.4 22 25 C 22 26.6 23.4 28 25 28 C 26.6 28 28 26.6 28 25 C 28 24.4 27.799609 24 27.599609 23.5 C 27.399609 23 27.100391 22.499609 26.900391 22.099609 C 26.400391 21.199609 25.800781 20.400391 25.800781 20.400391 L 25 19.300781 z"/>
+            </svg>
+        </button>
 
-        <div class="line-width-preview" style="--lineWidth: 5px">
+        <div class="line-width-preview" style="--scale: 0.2; --lineWidth: 5px">
             <div class="preview"></div>
 
             <div class="list">
-                <div class="item" data-value="2">
-                    <div class="opt" style="--lineWidth: 2px"></div>
+                <div class="item" data-value="10">
+                    <div class="opt" style="--lineWidth: 10px"></div>
                 </div>
-                <div class="item active" data-value="5">
-                    <div class="opt" style="--lineWidth: 5px"></div>
-                </div>
-                <div class="item" data-value="8">
-                    <div class="opt" style="--lineWidth: 8px"></div>
-                </div>
-                <div class="item" data-value="15">
+                <div class="item active" data-value="15">
                     <div class="opt" style="--lineWidth: 15px"></div>
+                </div>
+                <div class="item" data-value="20">
+                    <div class="opt" style="--lineWidth: 20px"></div>
                 </div>
                 <div class="item" data-value="25">
                     <div class="opt" style="--lineWidth: 25px"></div>
+                </div>
+                <div class="item" data-value="35">
+                    <div class="opt" style="--lineWidth: 35px"></div>
                 </div>
             </div>
         </div>
@@ -45,6 +81,23 @@
         <div class="color">
             <input type="color" id="fillColor">
         </div>
+    </div>
+</div>
+
+<div class="zoom-container">
+    <div class="minus disabled">
+        <svg width="800px" height="800px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 12L18 12" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </div>
+    <div class="value">20%</div>
+    <div class="plus">
+        <svg width="800px" height="800px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g id="Edit / Add_Plus">
+                <path id="Vector" d="M6 12H12M12 12H18M12 12V18M12 12V6" stroke="#fff" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+            </g>
+        </svg>
     </div>
 </div>
 <div id="cursor"></div>

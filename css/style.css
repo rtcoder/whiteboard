@@ -1,0 +1,51 @@
+@import "toolbar.css";
+@import "zoom.css";
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
+
+body {
+    width: 100dvw;
+    height: 100dvw;
+    overflow: hidden;
+    font-family: sans-serif;
+}
+
+svg, img {
+    pointer-events: none
+}
+
+#cursor {
+    position: fixed;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background-color: transparent;
+    border: 1px solid black;
+    outline: 1px solid #ccc;
+    pointer-events: none;
+    transition: width 0.2s, height 0.2s;
+    transform: translate(-50%, -50%);
+}
+
+#whiteboard {
+    cursor: none;
+    position: fixed;
+    transform: scale(0.2);
+    transform-origin:top left;
+}
+
+.draw-handler {
+    width: 100dvw;
+    height: 100dvh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}

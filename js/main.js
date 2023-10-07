@@ -14,21 +14,31 @@ export const app = {
         x: 0,
         y: 0,
     },
-    mouseDownOnToolbarMoveHandler:false
+    mouseDownOnToolbarMoveHandler: false,
+    points: [],
+    zoom: {
+        _steps: [0.2, 0.4, 0.5, 0.75, 0.9, 1],
+        scale: 0.2,
+        offsetX: 0,
+        offsetY: 0,
+    },
 };
 app.canvas = document.querySelector('#whiteboard');
 app.ctx = app.canvas.getContext('2d');
 app.allTools = document.querySelectorAll('.tool');
 
-
-
-
+export function setMousePosition(e) {
+    const ev = e.touches?.[0] || e;
+    app.mouse.x = ev.clientX;
+    app.mouse.y = ev.clientY;
+}
 
 
 function resizeCanvas() {
-    app.canvas.width = window.innerWidth;
-    app.canvas.height = window.innerHeight;
+    app.canvas.width = window.innerWidth * 5;
+    app.canvas.height = window.innerHeight * 5;
 }
+
 initEvents();
 resizeCanvas();
 clear();

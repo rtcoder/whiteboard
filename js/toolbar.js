@@ -2,7 +2,7 @@ import {app} from './main.js';
 
 const toolbar = document.querySelector('.toolbar');
 
-export function moveToolbar(e) {
+export function moveToolbar() {
     if (!app.mouseDownOnToolbarMoveHandler) {
         return;
     }
@@ -23,7 +23,6 @@ export function deactivateMovingToolbar() {
     app.mouseDownOnToolbarMoveHandler = false;
     toolbar.classList.remove('top', 'left', 'right', 'bottom');
 
-    // ......
     const verticalPosition = app.mouse.y < window.innerHeight / 2 ? 'top' : 'bottom';
     const horizontalPosition = app.mouse.x < window.innerWidth / 2 ? 'left' : 'right';
 
@@ -36,4 +35,12 @@ export function deactivateMovingToolbar() {
     toolbar.style.removeProperty('top');
     toolbar.style.removeProperty('left');
     setTimeout(() => toolbar.style.removeProperty('overflow'), 300);
+}
+
+export function hideToolbar() {
+    toolbar.classList.add('hidden');
+}
+
+export function showToolbar() {
+    toolbar.classList.remove('hidden');
 }
