@@ -76,8 +76,7 @@ export function clear(commit = true) {
 }
 
 function clearCanvas() {
-    app.ctx.fillStyle = 'white';
-    app.ctx.fillRect(0, 0, app.canvas.width, app.canvas.height);
+    app.ctx.clearRect(0, 0, app.canvas.width, app.canvas.height);
 }
 
 function drawPath(object) {
