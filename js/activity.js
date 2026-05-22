@@ -19,6 +19,20 @@ const objectLabels = {
     text: 'tekst',
 };
 
+const activityIcons = {
+    'board-cleared': '<path d="M7 7L17 17M17 7L7 17"/><circle cx="12" cy="12" r="8"/>',
+    'fill-used': '<path d="M7 11L12 6L18 12L13 17L7 11Z"/><path d="M17 17C17 17 19 19.2 19 20.5C19 21.3 18.3 22 17.5 22C16.7 22 16 21.3 16 20.5C16 19.2 17 17 17 17Z"/>',
+    'history-used': '<path d="M8 8H5V5"/><path d="M5.5 8.5C7 6.4 9.5 5 12.3 5C16.6 5 20 8.4 20 12.7S16.6 20 12.3 20C9.4 20 6.9 18.4 5.7 16"/>',
+    'object-deleted': '<path d="M7 8H17"/><path d="M10 8V6H14V8"/><path d="M9 11V17M12 11V17M15 11V17"/><path d="M8 8L9 20H15L16 8"/>',
+    'object-moved': '<path d="M12 3V21M12 3L9 6M12 3L15 6M12 21L9 18M12 21L15 18"/><path d="M3 12H21M3 12L6 9M3 12L6 15M21 12L18 9M21 12L18 15"/>',
+    'shape-added': '<path d="M6 6H18V18H6V6Z"/><path d="M12 9V15M9 12H15"/>',
+    'sticky-added': '<path d="M7 5H17V14L12 19H7V5Z"/><path d="M12 19V14H17"/>',
+    'text-added': '<path d="M6 6H18"/><path d="M12 6V19"/><path d="M9 19H15"/>',
+    'tool-used': '<path d="M6 18L16.5 7.5C17.3 6.7 18.6 6.7 19.3 7.5C20.1 8.3 20.1 9.6 19.3 10.3L8.8 20H5L6 18Z"/><path d="M14.5 9.5L17.5 12.5"/>',
+    'user-joined': '<path d="M8 20C8 16.7 10.2 15 12 15C13.8 15 16 16.7 16 20"/><circle cx="12" cy="9" r="3"/><path d="M18 8V14M15 11H21"/>',
+    'user-left': '<path d="M8 20C8 16.7 10.2 15 12 15C13.8 15 16 16.7 16 20"/><circle cx="12" cy="9" r="3"/><path d="M16 11H22"/><path d="M19 8L22 11L19 14"/>',
+};
+
 function escapeHtml(value) {
     return String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -34,6 +48,13 @@ function formatTime(timestamp) {
         minute: '2-digit',
         second: '2-digit',
     }).format(new Date(timestamp));
+}
+
+function getEventUser(event) {
+    return {
+        color: event.user?.color || '#64748b',
+        initials: event.user?.initials || (event.user?.name || event.userName || 'Guest').slice(0, 2).toUpperCase(),
+    };
 }
 
 export function getObjectLabel(type) {
@@ -99,6 +120,10 @@ function getActivityText(event) {
     return `user ${user} wykonał akcję`;
 }
 
+function getActivityIcon(kind) {
+    return activityIcons[kind] || '<circle cx="12" cy="12" r="7"/><path d="M12 8V12L15 15"/>';
+}
+
 function renderActivityLog() {
     if (!activityList) {
         return;
@@ -112,12 +137,20 @@ function renderActivityLog() {
     activityList.innerHTML = app.activityLog
         .slice()
         .reverse()
-        .map(event => `
-            <li class="activity-item">
+        .map(event => {
+            const user = getEventUser(event);
+
+            return `
+            <li class="activity-item" style="--activity-color: ${escapeHtml(user.color)}">
                 <time>${formatTime(event.timestamp)}</time>
-                <span>${escapeHtml(getActivityText(event))}</span>
+                <span class="activity-avatar">${escapeHtml(user.initials)}</span>
+                <span class="activity-kind-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none">${getActivityIcon(event.kind)}</svg>
+                </span>
+                <span class="activity-text">${escapeHtml(getActivityText(event))}</span>
             </li>
-        `)
+        `;
+        })
         .join('');
 }
 

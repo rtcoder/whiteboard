@@ -387,13 +387,19 @@ body.activity-open .activity-panel {
 }
 
 .activity-item {
+    position: relative;
     display: grid;
-    grid-template-columns: 72px 1fr;
-    gap: 10px;
+    grid-template-columns: 58px 28px 30px 1fr;
+    align-items: start;
+    gap: 8px;
     padding: 11px 12px;
     border: 1px solid rgba(15, 23, 42, 0.08);
+    border-left-color: color-mix(in srgb, var(--activity-color) 42%, rgba(15, 23, 42, 0.08));
+    border-left-width: 3px;
     border-radius: 8px;
-    background: #fff;
+    background:
+        linear-gradient(90deg, color-mix(in srgb, var(--activity-color) 7%, transparent), transparent 46%),
+        #fff;
     box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
 }
 
@@ -403,7 +409,46 @@ body.activity-open .activity-panel {
     font-weight: 800;
 }
 
-.activity-item span {
+.activity-avatar {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: var(--activity-color);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0;
+    box-shadow: 0 5px 14px color-mix(in srgb, var(--activity-color) 24%, transparent);
+}
+
+.activity-kind-icon {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 8px;
+    background: rgba(248, 250, 252, 0.92);
+    color: #475569;
+}
+
+.activity-kind-icon svg {
+    width: 17px;
+    height: 17px;
+}
+
+.activity-kind-icon path,
+.activity-kind-icon circle {
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.activity-text {
     min-width: 0;
     color: var(--text);
     font-size: 13px;
