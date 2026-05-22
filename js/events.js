@@ -5,6 +5,7 @@ import {
     createShape,
     createSticky,
     createText,
+    deleteObjectById,
     draw,
     findObjectAt,
     floodFill,
@@ -21,6 +22,7 @@ import {activateMovingToolbar, deactivateMovingToolbar, hideToolbar, moveToolbar
 import {clampZoomOffset, getCanvasPoint, getCanvasTransform, hexToRgba} from './utils.js';
 
 const fillColorInput = document.getElementById('fillColor');
+const fillToleranceInput = document.getElementById('fillTolerance');
 const linePreview = document.querySelector('.line-width-preview');
 const remoteCursors = document.querySelector('.remote-cursors');
 const presence = document.querySelector('.presence');
@@ -49,11 +51,12 @@ function applyCanvasTransform() {
 
 function startPath(point) {
     const isEraser = app.currentTool === 'eraser';
+    const isPencil = app.currentTool === 'pencil';
     app.draftObject = createPath(
         point,
         isEraser ? 'white' : app.fillColor,
-        app.lineWidth,
-        app.currentTool === 'marker' ? 0.35 : 1,
+        isPencil ? Math.max(2, Math.round(app.lineWidth * 0.45)) : app.lineWidth,
+        app.currentTool === 'marker' ? 0.35 : isPencil ? 0.72 : 1,
     );
 }
 
@@ -85,7 +88,7 @@ function finishDraft() {
     render();
     broadcastBoardState();
 
-    if (['line', 'arrow', 'rectangle', 'ellipse'].includes(object.type)) {
+    if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'].includes(object.type)) {
         broadcastActivity('shape-added', {
             color: object.color,
             objectId: object.id,
@@ -94,7 +97,7 @@ function finishDraft() {
     } else if (object.type === 'path' && app.currentTool !== 'eraser') {
         broadcastActivity('tool-used', {
             objectId: object.id,
-            tool: app.currentTool === 'marker' ? 'marker' : 'pen',
+            tool: app.currentTool === 'marker' ? 'marker' : app.currentTool === 'pencil' ? 'pencil' : 'pen',
         });
     }
 }
@@ -222,6 +225,9 @@ export function initEvents() {
     fillColorInput.addEventListener('input', () => {
         app.fillColor = fillColorInput.value;
     });
+    fillToleranceInput.addEventListener('input', () => {
+        app.fillTolerance = parseInt(fillToleranceInput.value, 10);
+    });
 
     linePreview.querySelector('.list').addEventListener('click', e => {
         const item = e.target.closest('.item');
@@ -339,6 +345,21 @@ export function initEvents() {
             return;
         }
 
+        if (app.currentTool === 'object-eraser') {
+            const object = findObjectAt(point);
+
+            if (object) {
+                const deletedObject = deleteObjectById(object.id);
+                broadcastActivity('object-deleted', {
+                    objectName: getObjectName(deletedObject),
+                });
+            } else {
+                render();
+            }
+
+            return;
+        }
+
         if (app.currentTool === 'fill') {
             const fillResult = floodFill(app.mouse.x, app.mouse.y, hexToRgba(app.fillColor));
 
@@ -359,7 +380,7 @@ export function initEvents() {
             return;
         }
 
-        if (['rectangle', 'ellipse', 'line', 'arrow'].includes(app.currentTool)) {
+        if (['rectangle', 'ellipse', 'diamond', 'polygon', 'line', 'arrow'].includes(app.currentTool)) {
             startShape(point);
             return;
         }
@@ -390,7 +411,7 @@ export function initEvents() {
             return;
         }
 
-        if (['rectangle', 'ellipse', 'line', 'arrow'].includes(app.currentTool)) {
+        if (['rectangle', 'ellipse', 'diamond', 'polygon', 'line', 'arrow'].includes(app.currentTool)) {
             updateDraftShape(point);
             return;
         }
@@ -429,11 +450,7 @@ export function initEvents() {
         }
 
         event.preventDefault();
-        saveHistory();
-        const [object] = app.objects.splice(objectIndex, 1);
-        app.selectedObjectId = null;
-        render();
-        broadcastBoardState({mode: 'replace'});
+        const object = deleteObjectById(app.selectedObjectId);
         broadcastActivity('object-deleted', {
             objectName: getObjectName(object),
         });

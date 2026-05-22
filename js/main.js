@@ -17,6 +17,7 @@ export const app = {
     allTools: [],
     currentTool: 'pen',
     fillColor: 'black',
+    fillTolerance: 64,
     lineWidth: 5,
     isDrawing: false,
     objects: [],

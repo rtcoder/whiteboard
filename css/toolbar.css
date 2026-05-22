@@ -200,7 +200,8 @@
 
     button,
     .line-width-preview,
-    .color {
+    .color,
+    .fill-tolerance {
         flex: 0 0 auto;
     }
 
@@ -305,6 +306,31 @@
         border-radius: 50%;
         overflow: hidden;
         box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.18);
+    }
+
+    .fill-tolerance {
+        --icon-color: #475569;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        width: 112px;
+        height: 38px;
+        padding: 0 9px;
+        border-radius: 11px;
+        background: rgba(255, 255, 255, 0.72);
+
+        svg {
+            width: 20px;
+            height: 20px;
+            flex: 0 0 auto;
+        }
+
+        input {
+            width: 68px;
+            min-width: 0;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
     }
 
     input[type="color"] {

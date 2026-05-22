@@ -2,7 +2,6 @@ import {app} from './main.js';
 import {broadcastBoardState} from './network.js';
 import {createId, getCanvasPoint} from './utils.js';
 
-const FLOOD_FILL_TOLERANCE = 64;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const bitmapUrlCache = new WeakMap();
 
@@ -176,6 +175,24 @@ function drawShape(object) {
         app.ctx.rect(x, y, width, height);
     } else if (object.type === 'ellipse') {
         app.ctx.ellipse(x + width / 2, y + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
+    } else if (object.type === 'diamond') {
+        getShapePoints(object).forEach((point, index) => {
+            if (index === 0) {
+                app.ctx.moveTo(point.x, point.y);
+            } else {
+                app.ctx.lineTo(point.x, point.y);
+            }
+        });
+        app.ctx.closePath();
+    } else if (object.type === 'polygon') {
+        getShapePoints(object).forEach((point, index) => {
+            if (index === 0) {
+                app.ctx.moveTo(point.x, point.y);
+            } else {
+                app.ctx.lineTo(point.x, point.y);
+            }
+        });
+        app.ctx.closePath();
     } else if (object.type === 'line' || object.type === 'arrow') {
         app.ctx.moveTo(object.x, object.y);
         app.ctx.lineTo(object.x2, object.y2);
@@ -250,7 +267,7 @@ function getBounds(object) {
         };
     }
 
-    if (['line', 'arrow', 'rectangle', 'ellipse'].includes(object.type)) {
+    if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'].includes(object.type)) {
         const x = Math.min(object.x, object.x2);
         const y = Math.min(object.y, object.y2);
         return {
@@ -293,6 +310,52 @@ function rgbaToCss(color) {
     return `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3] / 255})`;
 }
 
+function getShapePoints(object) {
+    const x = Math.min(object.x, object.x2);
+    const y = Math.min(object.y, object.y2);
+    const width = Math.abs(object.x2 - object.x);
+    const height = Math.abs(object.y2 - object.y);
+
+    if (object.type === 'diamond') {
+        return [
+            {x: x + width / 2, y},
+            {x: x + width, y: y + height / 2},
+            {x: x + width / 2, y: y + height},
+            {x, y: y + height / 2},
+        ];
+    }
+
+    if (object.type === 'polygon') {
+        return [
+            {x: x + width * 0.25, y},
+            {x: x + width * 0.75, y},
+            {x: x + width, y: y + height / 2},
+            {x: x + width * 0.75, y: y + height},
+            {x: x + width * 0.25, y: y + height},
+            {x, y: y + height / 2},
+        ];
+    }
+
+    return [];
+}
+
+function isPointInsidePolygon(point, points) {
+    let inside = false;
+
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+        const pi = points[i];
+        const pj = points[j];
+        const intersects = (pi.y > point.y) !== (pj.y > point.y) &&
+            point.x < (pj.x - pi.x) * (point.y - pi.y) / (pj.y - pi.y) + pi.x;
+
+        if (intersects) {
+            inside = !inside;
+        }
+    }
+
+    return inside;
+}
+
 function isPointInsideFillableObject(point, object) {
     if (object.type === 'rectangle') {
         const x = Math.min(object.x, object.x2);
@@ -319,6 +382,10 @@ function isPointInsideFillableObject(point, object) {
         const normalizedY = (point.y - centerY) / radiusY;
 
         return normalizedX * normalizedX + normalizedY * normalizedY <= 1;
+    }
+
+    if (object.type === 'diamond' || object.type === 'polygon') {
+        return isPointInsidePolygon(point, getShapePoints(object));
     }
 
     return false;
@@ -423,6 +490,20 @@ function createSvgShape(object) {
             cy: y + height / 2,
             rx: width / 2,
             ry: height / 2,
+        });
+    }
+
+    if (object.type === 'diamond') {
+        return createSvgElement('polygon', {
+            ...common,
+            points: getShapePoints(object).map(point => `${point.x},${point.y}`).join(' '),
+        });
+    }
+
+    if (object.type === 'polygon') {
+        return createSvgElement('polygon', {
+            ...common,
+            points: getShapePoints(object).map(point => `${point.x},${point.y}`).join(' '),
         });
     }
 
@@ -532,7 +613,7 @@ function appendSvgObject(object, parent = app.svg) {
         element = createSvgBitmap(object);
     } else if (object.type === 'path') {
         element = createSvgPath(object);
-    } else if (['line', 'arrow', 'rectangle', 'ellipse'].includes(object.type)) {
+    } else if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'].includes(object.type)) {
         element = createSvgShape(object);
     } else if (object.type === 'text' || object.type === 'sticky') {
         element = createSvgTextObject(object);
@@ -606,7 +687,7 @@ export function render(showSelection = true) {
             app.ctx.putImageData(object.imageData, object.x, object.y);
         } else if (object.type === 'path') {
             drawPath(object);
-        } else if (['line', 'arrow', 'rectangle', 'ellipse'].includes(object.type)) {
+        } else if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'].includes(object.type)) {
             drawShape(object);
         } else if (object.type === 'text' || object.type === 'sticky') {
             drawTextObject(object);
@@ -622,7 +703,7 @@ export function render(showSelection = true) {
     if (app.draftObject) {
         if (app.draftObject.type === 'path') {
             drawPath(app.draftObject);
-        } else if (['line', 'arrow', 'rectangle', 'ellipse'].includes(app.draftObject.type)) {
+        } else if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'].includes(app.draftObject.type)) {
             drawShape(app.draftObject);
         }
     }
@@ -657,6 +738,28 @@ export function createShape(type, point, color, lineWidth) {
         color,
         lineWidth,
     };
+}
+
+export function deleteObjectById(id) {
+    const object = app.objects.find(item => item.id === id);
+
+    if (!object) {
+        return null;
+    }
+
+    saveHistory();
+    app.objects = app.objects.filter(item => {
+        if (item.id === id) {
+            return false;
+        }
+
+        return !item.linkedObjectIds?.includes(id);
+    });
+    app.selectedObjectId = null;
+    render();
+    broadcastBoardState({mode: 'replace'});
+
+    return object;
 }
 
 export function createText(point, text) {
@@ -801,10 +904,10 @@ export function floodFill(x, y, fillColor) {
 
     const matchesTargetColor = (px, py) => {
         const offset = (py * width + px) * 4;
-        return Math.abs(data[offset] - targetColor[0]) <= FLOOD_FILL_TOLERANCE &&
-            Math.abs(data[offset + 1] - targetColor[1]) <= FLOOD_FILL_TOLERANCE &&
-            Math.abs(data[offset + 2] - targetColor[2]) <= FLOOD_FILL_TOLERANCE &&
-            Math.abs(data[offset + 3] - targetColor[3]) <= FLOOD_FILL_TOLERANCE;
+        return Math.abs(data[offset] - targetColor[0]) <= app.fillTolerance &&
+            Math.abs(data[offset + 1] - targetColor[1]) <= app.fillTolerance &&
+            Math.abs(data[offset + 2] - targetColor[2]) <= app.fillTolerance &&
+            Math.abs(data[offset + 3] - targetColor[3]) <= app.fillTolerance;
     };
 
     const setFillColor = (px, py) => {

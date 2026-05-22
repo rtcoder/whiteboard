@@ -110,6 +110,13 @@
         <path d="M13.5 7.5L17.5 11.5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
       </svg>
     </button>
+    <button class="tool" id="pencil" title="Pencil" aria-label="Pencil">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M6 18.5L15.8 8.7C16.5 8 17.6 8 18.3 8.7C19 9.4 19 10.5 18.3 11.2L8.5 21H6V18.5Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M14.7 9.8L17.2 12.3" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
+        <path d="M5 5C7.8 4.1 10 4.3 12 5.6" stroke="var(--icon-color)" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="1 3"/>
+      </svg>
+    </button>
     <button class="tool" id="eraser" title="Eraser" aria-label="Eraser">
       <svg width="800px" height="800px" viewBox="-2.17 0 80.129 80.129" xmlns="http://www.w3.org/2000/svg">
         <g id="eraser" transform="translate(-1067.853 -238.567)">
@@ -123,6 +130,13 @@
               d="M1101.759,312.464l1.1-1.1-32-32.009-1.106,1.1a6.543,6.543,0,0,0,.005,9.225l22.779,22.774A6.538,6.538,0,0,0,1101.759,312.464Z"
               fill="#f43b37"/>
         </g>
+      </svg>
+    </button>
+    <button class="tool" id="object-eraser" title="Erase object" aria-label="Erase object">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M5 15L13.5 6.5C14.3 5.7 15.7 5.7 16.5 6.5L18.5 8.5C19.3 9.3 19.3 10.7 18.5 11.5L11 19H6L5 15Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M12.5 7.5L17.5 12.5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
+        <path d="M14 19H21" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
       </svg>
     </button>
     <button id="clear" title="Clear" aria-label="Clear">
@@ -164,6 +178,16 @@
     <button class="tool" id="ellipse" title="Ellipse" aria-label="Ellipse">
       <svg viewBox="0 0 24 24" fill="none">
         <path d="M4 12C4 8.7 7.6 6 12 6S20 8.7 20 12S16.4 18 12 18S4 15.3 4 12Z" stroke="var(--icon-color)" stroke-width="2"/>
+      </svg>
+    </button>
+    <button class="tool" id="diamond" title="Diamond" aria-label="Diamond">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M12 4L20 12L12 20L4 12L12 4Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button class="tool" id="polygon" title="Polygon" aria-label="Polygon">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M8 5H16L21 12L16 19H8L3 12L8 5Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
       </svg>
     </button>
     </div>
@@ -210,6 +234,13 @@
     <div class="color">
       <input type="color" id="fillColor" title="Color" aria-label="Color">
     </div>
+    <label class="fill-tolerance" title="Fill tolerance" aria-label="Fill tolerance">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M7 11L12 6L18 12L13 17L7 11Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M18 17C18 17 20 19.2 20 20.5C20 21.3 19.3 22 18.5 22C17.7 22 17 21.3 17 20.5C17 19.2 18 17 18 17Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+      <input type="range" id="fillTolerance" min="0" max="120" step="4" value="64">
+    </label>
     </div>
   </div>
 </div>
