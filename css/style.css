@@ -360,6 +360,7 @@ body.activity-open .activity-panel {
 }
 
 .activity-close {
+    --icon-color: var(--text);
     display: grid;
     place-items: center;
     width: 34px;
