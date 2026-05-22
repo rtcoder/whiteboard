@@ -420,6 +420,19 @@ body.activity-open .activity-panel {
     box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
 }
 
+.activity-item.has-object-link {
+    cursor: pointer;
+}
+
+.activity-item.has-object-link:hover,
+.activity-item.has-object-link:focus-visible {
+    border-color: color-mix(in srgb, var(--activity-color) 34%, rgba(15, 23, 42, 0.14));
+    box-shadow:
+        0 0 0 3px color-mix(in srgb, var(--activity-color) 12%, transparent),
+        0 10px 24px rgba(15, 23, 42, 0.08);
+    outline: none;
+}
+
 .activity-item time {
     color: var(--muted);
     font-size: 11px;

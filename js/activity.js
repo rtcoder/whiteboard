@@ -58,12 +58,12 @@ function getEventUser(event) {
 }
 
 export function getObjectLabel(type) {
-    return objectLabels[type] || type || 'obiekt';
+    return objectLabels[type] || type || 'object';
 }
 
 export function getObjectName(object) {
     if (!object) {
-        return 'obiekt';
+        return 'object';
     }
 
     return `${getObjectLabel(object.type)} ${object.id?.slice(-4) || ''}`.trim();
@@ -143,9 +143,14 @@ function renderActivityLog() {
         .reverse()
         .map(event => {
             const user = getEventUser(event);
+            const objectId = event.details?.objectId;
+            const isExistingObjectEvent = objectId && app.objects.some(object => object.id === objectId);
+            const objectAttrs = isExistingObjectEvent
+                ? ` data-object-id="${escapeHtml(objectId)}" tabindex="0" title="Highlight object"`
+                : '';
 
             return `
-            <li class="activity-item" style="--activity-color: ${escapeHtml(user.color)}">
+            <li class="activity-item${isExistingObjectEvent ? ' has-object-link' : ''}" style="--activity-color: ${escapeHtml(user.color)}"${objectAttrs}>
                 <time>${formatTime(event.timestamp)}</time>
                 <span class="activity-avatar">${escapeHtml(user.initials)}</span>
                 <span class="activity-kind-icon" aria-hidden="true">
@@ -156,6 +161,17 @@ function renderActivityLog() {
         `;
         })
         .join('');
+}
+
+function highlightActivityObject(item) {
+    const objectId = item?.dataset.objectId;
+
+    if (!objectId || !app.objects.some(object => object.id === objectId)) {
+        return;
+    }
+
+    app.selectedObjectId = objectId;
+    window.whiteboardRender?.();
 }
 
 export function addActivityEntries(entries) {
@@ -173,6 +189,10 @@ export function addActivityEntries(entries) {
     renderActivityLog();
 }
 
+export function refreshActivityLog() {
+    renderActivityLog();
+}
+
 export function initActivityPanel() {
     renderActivityLog();
 
@@ -184,5 +204,32 @@ export function initActivityPanel() {
     activityClose?.addEventListener('click', () => {
         document.body.classList.remove('activity-open');
         activityToggle?.setAttribute('aria-expanded', 'false');
+    });
+
+    activityList?.addEventListener('click', event => {
+        if (!(event.target instanceof Element)) {
+            return;
+        }
+
+        highlightActivityObject(event.target.closest('.activity-item'));
+    });
+
+    activityList?.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') {
+            return;
+        }
+
+        if (!(event.target instanceof Element)) {
+            return;
+        }
+
+        const item = event.target.closest('.activity-item');
+
+        if (!item?.dataset.objectId) {
+            return;
+        }
+
+        event.preventDefault();
+        highlightActivityObject(item);
     });
 }

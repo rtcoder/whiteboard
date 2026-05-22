@@ -339,6 +339,7 @@ function fillObjectAt(point, fillColor) {
 
     return {
         color: rgbaToCss(fillColor),
+        objectId: object.id,
         objectType: object.type,
     };
 }
@@ -898,7 +899,7 @@ export function floodFill(x, y, fillColor) {
     }
 
     saveHistory();
-    app.objects.push({
+    const bitmapObject = {
         id: createId('bitmap'),
         type: 'bitmap',
         x: minX,
@@ -907,12 +908,15 @@ export function floodFill(x, y, fillColor) {
         height: regionHeight,
         linkedObjectIds,
         imageData: regionImageData,
-    });
+    };
+
+    app.objects.push(bitmapObject);
     render();
     broadcastBoardState();
 
     return {
         color: rgbaToCss(fillColor),
+        objectId: bitmapObject.id,
         objectType: linkedObjectIds.length ? 'path' : 'bitmap',
     };
 }

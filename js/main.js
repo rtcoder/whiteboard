@@ -58,6 +58,7 @@ app.ctx = app.canvas.getContext('2d');
 app.svg = document.querySelector('#whiteboardSvg');
 app.allTools = document.querySelectorAll('.tool');
 window.whiteboardApp = app;
+window.whiteboardRender = render;
 
 export function setMousePosition(e) {
     const ev = e.touches?.[0] || e;

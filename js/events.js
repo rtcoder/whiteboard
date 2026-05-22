@@ -88,10 +88,12 @@ function finishDraft() {
     if (['line', 'arrow', 'rectangle', 'ellipse'].includes(object.type)) {
         broadcastActivity('shape-added', {
             color: object.color,
+            objectId: object.id,
             objectType: object.type,
         });
     } else if (object.type === 'path' && app.currentTool !== 'eraser') {
         broadcastActivity('tool-used', {
+            objectId: object.id,
             tool: app.currentTool === 'marker' ? 'marker' : 'pen',
         });
     }
@@ -111,6 +113,7 @@ function addTextObject(point, type) {
     render();
     broadcastBoardState();
     broadcastActivity(type === 'sticky' ? 'sticky-added' : 'text-added', {
+        objectId: object.id,
         text,
     });
 }
@@ -342,6 +345,7 @@ export function initEvents() {
             if (fillResult) {
                 broadcastActivity('fill-used', {
                     color: app.fillColor,
+                    objectId: fillResult.objectId,
                     objectType: fillResult.objectType,
                 });
             }
@@ -404,6 +408,7 @@ export function initEvents() {
             const movedObject = app.objects.find(item => item.id === app.selectedObjectId);
             broadcastBoardState();
             broadcastActivity('object-moved', {
+                objectId: movedObject?.id,
                 objectName: getObjectName(movedObject),
             });
         }

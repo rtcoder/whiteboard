@@ -1,5 +1,5 @@
 import {app} from './main.js';
-import {addActivityEntries} from './activity.js';
+import {addActivityEntries, refreshActivityLog} from './activity.js';
 import {getUserAvatar} from './utils.js';
 
 let socket = null;
@@ -146,6 +146,7 @@ export function broadcastBoardState({mode = 'merge'} = {}) {
     const revision = currentRevision;
     currentRevision += 1;
     saveLocalBoardState(objects);
+    refreshActivityLog();
     logNetwork('broadcast board-state requested', {
         revision,
         mode,
@@ -285,6 +286,7 @@ export function initNetwork({render, onPeersChange}) {
             app.objects = boardState.map(deserializeObject);
             suppressBroadcast = false;
             renderBoard();
+            refreshActivityLog();
             updatePeers();
             if (!message.boardState?.length && boardState.length) {
                 broadcastBoardState();
@@ -308,6 +310,7 @@ export function initNetwork({render, onPeersChange}) {
             app.selectedObjectId = null;
             suppressBroadcast = false;
             renderBoard();
+            refreshActivityLog();
             logNetwork('applied remote board-state', {
                 revision: currentRevision,
                 objects: app.objects.length,
