@@ -1,51 +1,60 @@
 .zoom-container {
     position: fixed;
-    left: 10px;
-    bottom: 10px;
-    width: 100px;
-    height: 40px;
+    right: 16px;
+    bottom: 16px;
+    z-index: 2;
     display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    z-index: 1;
-    background: #0078d4;
-    color: #fff;
-    border-radius: 20px;
+    align-items: center;
+    width: 116px;
+    height: 42px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
     overflow: hidden;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+    backdrop-filter: blur(18px);
 
-    .minus, .plus, .value {
+    .minus,
+    .plus,
+    .value {
         display: flex;
-        justify-content: center;
         align-items: center;
-        transition: background 0.2s ease-in-out;
-
+        justify-content: center;
     }
 
-    .minus, .plus {
-        width: 30px;
-        flex: 0 0 30px;
+    .minus,
+    .plus {
+        width: 34px;
+        height: 100%;
+        flex: 0 0 34px;
         cursor: pointer;
+        transition: background 0.15s ease;
 
         &:hover {
-            background: rgba(0, 0, 0, 0.2);
+            background: #e2e8f0;
         }
 
         &.disabled {
             cursor: default;
-            background: rgba(255, 255, 255, 0.2);
+            opacity: 0.42;
+            background: transparent;
         }
 
         & svg {
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
+        }
+
+        & path {
+            stroke: var(--muted);
         }
     }
 
     .value {
-        cursor: default;
         width: 100%;
-        font-weight: bold; /* Pogrubiona wartość */
-        font-size: 16px; /* Rozmiar tekstu wartości */
+        font-size: 13px;
+        font-weight: 750;
+        cursor: default;
     }
 }

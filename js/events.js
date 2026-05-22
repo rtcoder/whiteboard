@@ -2,7 +2,7 @@ import {moveCursor} from './cursor.js';
 import {clear, draw, floodFill} from './drawing.js';
 import {app, setMousePosition} from './main.js';
 import {activateMovingToolbar, deactivateMovingToolbar, hideToolbar, moveToolbar, showToolbar} from './toolbar.js';
-import {getCanvasTransform, hexToRgba} from './utils.js';
+import {clampZoomOffset, getCanvasTransform, hexToRgba} from './utils.js';
 
 const fillColorInput = document.getElementById('fillColor');
 const linePreview = document.querySelector('.line-width-preview');
@@ -72,6 +72,7 @@ export function initEvents() {
                 indexModifier = 1;
             }
             app.zoom.scale = app.zoom._steps[currentZoomIndex + indexModifier];
+            clampZoomOffset();
             document.querySelector('.zoom-container .value').innerHTML = app.zoom.scale * 100 + '%';
             app.canvas.style.transform = getCanvasTransform();
             document.body.style.setProperty('--scale', app.zoom.scale);
@@ -120,18 +121,7 @@ export function initEvents() {
         app.zoom.offsetX += -e.deltaX / app.zoom.scale;
         app.zoom.offsetY += -e.deltaY / app.zoom.scale;
 
-        if (app.zoom.offsetX > 0) {
-            app.zoom.offsetX = 0;
-        }
-        if (app.zoom.offsetY > 0) {
-            app.zoom.offsetY = 0;
-        }
-        if (app.zoom.offsetX < -(app.canvas.width * app.zoom.scale - window.innerWidth)) {
-            app.zoom.offsetX = -(app.canvas.width * app.zoom.scale - window.innerWidth);
-        }
-        if (app.zoom.offsetY < -(app.canvas.height * app.zoom.scale - window.innerHeight)) {
-            app.zoom.offsetY = -(app.canvas.height * app.zoom.scale - window.innerHeight);
-        }
+        clampZoomOffset();
         app.canvas.style.transform = getCanvasTransform();
     });
 }
