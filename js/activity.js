@@ -7,16 +7,16 @@ const activityList = document.querySelector('.activity-list');
 const MAX_ACTIVITY_ITEMS = 200;
 
 const objectLabels = {
-    arrow: 'strzałka',
-    bitmap: 'rysunek',
-    ellipse: 'elipsa',
-    line: 'linia',
+    arrow: 'arrow',
+    bitmap: 'drawing',
+    ellipse: 'ellipse',
+    line: 'line',
     marker: 'marker',
-    path: 'rysunek',
-    pen: 'ołówek',
-    rectangle: 'prostokąt',
-    sticky: 'notatka',
-    text: 'tekst',
+    path: 'drawing',
+    pen: 'pencil',
+    rectangle: 'rectangle',
+    sticky: 'note',
+    text: 'text',
 };
 
 const activityIcons = {
@@ -74,52 +74,56 @@ function getActivityText(event) {
     const details = event.details || {};
 
     if (event.kind === 'user-joined') {
-        return `user ${user} dołączył`;
+        return `${user} joined the room`;
     }
 
     if (event.kind === 'user-left') {
-        return `user ${user} opuścił pokój`;
+        return `${user} left the room`;
     }
 
     if (event.kind === 'shape-added') {
-        return `user ${user} dodał kształt ${getObjectLabel(details.objectType)} kolorem ${details.color}`;
+        let label = getObjectLabel(details.objectType);
+        label = articleFor(label) + ' ' + label;
+        return `${user} added ${label} with color ${details.color}`;
     }
 
     if (event.kind === 'object-deleted') {
-        return `user ${user} usunął kształt ${details.objectName}`;
+        return `${user} deleted ${details.objectName}`;
     }
 
     if (event.kind === 'tool-used') {
-        return `user ${user} użył ${getObjectLabel(details.tool)}`;
+        return `${user} used ${getObjectLabel(details.tool)}`;
     }
 
     if (event.kind === 'text-added') {
-        return `user ${user} dodał tekst "${details.text}"`;
+        return `${user} added text "${details.text}"`;
     }
 
     if (event.kind === 'sticky-added') {
-        return `user ${user} dodał notatkę "${details.text}"`;
+        return `${user} added note "${details.text}"`;
     }
 
     if (event.kind === 'history-used') {
-        return `user ${user} użył ${details.action === 'redo' ? 'powtórz' : 'cofnij'}`;
+        return `${user} used ${details.action === 'redo' ? 'redo' : 'undo'}`;
     }
 
     if (event.kind === 'fill-used') {
-        return `user ${user} wypełnił kształt ${getObjectLabel(details.objectType)} kolorem ${details.color}`;
+        return `${user} filled ${getObjectLabel(details.objectType)} with color ${details.color}`;
     }
 
     if (event.kind === 'object-moved') {
-        return `user ${user} zmienił pozycję ${details.objectName}`;
+        return `${user} moved ${details.objectName}`;
     }
 
     if (event.kind === 'board-cleared') {
-        return `user ${user} wyczyścił tablicę`;
+        return `${user} cleared the board`;
     }
 
-    return `user ${user} wykonał akcję`;
+    return `${user} performed an action`;
 }
-
+function articleFor(label) {
+    return /^[aeiou]/i.test(label) ? 'an' : 'a';
+}
 function getActivityIcon(kind) {
     return activityIcons[kind] || '<circle cx="12" cy="12" r="7"/><path d="M12 8V12L15 15"/>';
 }
@@ -130,7 +134,7 @@ function renderActivityLog() {
     }
 
     if (!app.activityLog.length) {
-        activityList.innerHTML = '<li class="activity-empty">Brak zdarzeń</li>';
+        activityList.innerHTML = '<li class="activity-empty">No events yet</li>';
         return;
     }
 

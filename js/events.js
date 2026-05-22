@@ -97,7 +97,7 @@ function finishDraft() {
 }
 
 function addTextObject(point, type) {
-    const text = window.prompt(type === 'sticky' ? 'Treść notatki' : 'Tekst');
+    const text = window.prompt(type === 'sticky' ? 'Note content' : 'Text');
 
     if (!text) {
         return;
