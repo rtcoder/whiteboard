@@ -1,5 +1,6 @@
 import {clear, render} from './drawing.js';
 import {initEvents} from './events.js';
+import {initNetwork} from './network.js';
 
 export const app = {
     canvas: null,
@@ -22,10 +23,12 @@ export const app = {
         last: null,
         moved: false,
     },
-    collaborators: [
-        {id: 'mk', name: 'MK', color: '#10b981', x: 720, y: 360},
-        {id: 'a', name: 'A', color: '#f97316', x: 980, y: 620},
-    ],
+    roomId: null,
+    localUser: {
+        name: localStorage.getItem('whiteboard:userName') || `Guest ${Math.floor(Math.random() * 90 + 10)}`,
+        color: '#2563eb',
+    },
+    collaborators: new Map(),
     mouse: {
         x: 0,
         y: 0,
@@ -58,5 +61,52 @@ function resizeCanvas() {
 }
 
 resizeCanvas();
-clear(false);
-initEvents();
+
+function getRoomIdFromPath() {
+    const path = window.location.pathname.replace(/^\/+|\/+$/g, '');
+    return path || null;
+}
+
+function setupLobby() {
+    document.body.classList.add('lobby-active');
+    const userNameInput = document.getElementById('userName');
+    userNameInput.value = localStorage.getItem('whiteboard:userName') || '';
+
+    const saveUserName = () => {
+        const name = userNameInput.value.trim();
+
+        if (name) {
+            localStorage.setItem('whiteboard:userName', name);
+        }
+
+        return name;
+    };
+
+    document.getElementById('newWhiteboard').addEventListener('click', () => {
+        saveUserName();
+        window.location.href = `/${crypto.randomUUID()}`;
+    });
+
+    document.getElementById('joinWhiteboard').addEventListener('submit', event => {
+        event.preventDefault();
+        saveUserName();
+        const code = document.getElementById('roomCode').value.trim();
+
+        if (code) {
+            window.location.href = `/${code}`;
+        }
+    });
+}
+
+app.roomId = getRoomIdFromPath();
+
+if (!app.roomId) {
+    setupLobby();
+} else {
+    clear(false);
+    initEvents();
+    initNetwork({
+        render,
+        onPeersChange: window.updateRemoteCursors || (() => {}),
+    });
+}

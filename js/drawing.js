@@ -1,4 +1,5 @@
 import {app} from './main.js';
+import {broadcastBoardState} from './network.js';
 import {createId, getCanvasPoint} from './utils.js';
 
 function cloneImageData(imageData) {
@@ -41,6 +42,7 @@ export function undo() {
     app.objects = app.history.undo.pop();
     app.selectedObjectId = null;
     render();
+    broadcastBoardState();
 }
 
 export function redo() {
@@ -52,6 +54,7 @@ export function redo() {
     app.objects = app.history.redo.pop();
     app.selectedObjectId = null;
     render();
+    broadcastBoardState();
 }
 
 export function clear(commit = true) {
@@ -62,6 +65,7 @@ export function clear(commit = true) {
     app.objects = [];
     app.selectedObjectId = null;
     render();
+    broadcastBoardState();
 }
 
 function clearCanvas() {
@@ -461,4 +465,5 @@ export function floodFill(x, y, fillColor) {
         imageData: cloneImageData(imageData),
     });
     render();
+    broadcastBoardState();
 }

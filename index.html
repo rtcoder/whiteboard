@@ -7,6 +7,23 @@
   <link rel="stylesheet" href="./css/style.css">
 </head>
 <body style="--scale: 0.2; --lineWidth: 10px">
+<main class="lobby" id="lobby">
+  <section class="lobby-panel">
+    <div class="lobby-brand">
+      <span class="board-mark"></span>
+      <span>Whiteboard</span>
+    </div>
+    <h1>Start a shared board</h1>
+    <p>Create a new room or paste a meeting code to join an existing board.</p>
+    <input class="name-input" id="userName" type="text" placeholder="Your name" autocomplete="name">
+    <button class="primary-action" id="newWhiteboard" type="button">New whiteboard</button>
+    <form class="join-form" id="joinWhiteboard">
+      <input id="roomCode" type="text" placeholder="Meeting code" autocomplete="off">
+      <button type="submit">Join</button>
+    </form>
+  </section>
+</main>
+
 <canvas id="whiteboard"></canvas>
 <div class="draw-handler"></div>
 

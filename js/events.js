@@ -15,12 +15,14 @@ import {
     undo,
 } from './drawing.js';
 import {app, setMousePosition} from './main.js';
+import {broadcastBoardState, sendCursorPosition} from './network.js';
 import {activateMovingToolbar, deactivateMovingToolbar, hideToolbar, moveToolbar, showToolbar} from './toolbar.js';
 import {clampZoomOffset, getCanvasPoint, getCanvasTransform, hexToRgba} from './utils.js';
 
 const fillColorInput = document.getElementById('fillColor');
 const linePreview = document.querySelector('.line-width-preview');
 const remoteCursors = document.querySelector('.remote-cursors');
+const presence = document.querySelector('.presence');
 
 function addListener(element, events, listener) {
     events.forEach(ev => {
@@ -78,6 +80,7 @@ function finishDraft() {
     app.objects.push(object);
     app.selectedObjectId = object.id;
     render();
+    broadcastBoardState();
 }
 
 function addTextObject(point, type) {
@@ -92,6 +95,7 @@ function addTextObject(point, type) {
     app.objects.push(object);
     app.selectedObjectId = object.id;
     render();
+    broadcastBoardState();
 }
 
 function moveSelectedObject(point) {
@@ -139,6 +143,14 @@ function updateRemoteCursors() {
         return;
     }
 
+    const activePeerIds = new Set(app.collaborators.keys());
+
+    remoteCursors.querySelectorAll('.remote-cursor').forEach(cursor => {
+        if (!activePeerIds.has(cursor.dataset.userId)) {
+            cursor.remove();
+        }
+    });
+
     app.collaborators.forEach(user => {
         let cursor = remoteCursors.querySelector(`[data-user-id="${user.id}"]`);
 
@@ -154,23 +166,21 @@ function updateRemoteCursors() {
         cursor.style.left = `${(user.x + app.zoom.offsetX) * app.zoom.scale}px`;
         cursor.style.top = `${(user.y + app.zoom.offsetY) * app.zoom.scale}px`;
     });
-}
 
-function initLiveCursorDemo() {
-    updateRemoteCursors();
-
-    window.setInterval(() => {
-        app.collaborators.forEach((user, index) => {
-            user.x += Math.sin(Date.now() / 900 + index) * 14;
-            user.y += Math.cos(Date.now() / 1100 + index) * 10;
-        });
-        updateRemoteCursors();
-    }, 900);
+    if (presence) {
+        presence.innerHTML = `
+            <span class="avatar active" style="--avatar-color: ${app.localUser.color}">${app.localUser.name.slice(0, 2).toUpperCase()}</span>
+            ${[...app.collaborators.values()].map(user => (
+                `<span class="avatar" style="--avatar-color: ${user.color}">${user.name.slice(0, 2).toUpperCase()}</span>`
+            )).join('')}
+        `;
+    }
 }
 
 export function initEvents() {
     document.addEventListener('contextmenu', e => e.preventDefault());
-    initLiveCursorDemo();
+    window.updateRemoteCursors = updateRemoteCursors;
+    document.querySelector('.board-title span:last-child').textContent = `Whiteboard / ${app.roomId.slice(0, 8)}`;
     fillColorInput.addEventListener('input', () => {
         app.fillColor = fillColorInput.value;
     });
@@ -306,6 +316,7 @@ export function initEvents() {
         setMousePosition(e);
         moveCursor();
         moveToolbar();
+        sendCursorPosition(getCanvasPoint(app.mouse.x, app.mouse.y));
 
         if (!app.isDrawing) {
             return;
@@ -337,6 +348,9 @@ export function initEvents() {
         deactivateMovingToolbar();
 
         finishDraft();
+        if (app.currentTool === 'select' && app.drag.moved) {
+            broadcastBoardState();
+        }
         app.drag.start = null;
         app.drag.last = null;
         app.drag.moved = false;

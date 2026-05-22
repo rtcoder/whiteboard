@@ -1,5 +1,5 @@
 {
     "scripts":{
-        "start": "npx browser-sync start -s -f . --port 8080"
+        "start": "node server.js"
     }
 }
