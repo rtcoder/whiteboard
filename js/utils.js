@@ -47,3 +47,26 @@ export function clampZoomOffset() {
 export function createId(prefix = 'object') {
     return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
+
+export function getUserAvatar(name) {
+    const normalizedName = name.trim() || 'Guest';
+    const initials = normalizedName
+        .split(/\s+/)
+        .slice(0, 2)
+        .map(part => part[0])
+        .join('')
+        .toUpperCase();
+
+    let hash = 0;
+    for (let index = 0; index < normalizedName.length; index++) {
+        hash = normalizedName.charCodeAt(index) + ((hash << 5) - hash);
+        hash |= 0;
+    }
+
+    const hue = Math.abs(hash) % 360;
+
+    return {
+        initials,
+        color: `hsl(${hue}, 78%, 46%)`,
+    };
+}

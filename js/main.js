@@ -1,6 +1,10 @@
 import {clear, render} from './drawing.js';
 import {initEvents} from './events.js';
 import {initNetwork} from './network.js';
+import {getUserAvatar} from './utils.js';
+
+const storedUserName = localStorage.getItem('whiteboard:userName') || `Guest ${Math.floor(Math.random() * 90 + 10)}`;
+const storedUserAvatar = getUserAvatar(storedUserName);
 
 export const app = {
     canvas: null,
@@ -25,8 +29,9 @@ export const app = {
     },
     roomId: null,
     localUser: {
-        name: localStorage.getItem('whiteboard:userName') || `Guest ${Math.floor(Math.random() * 90 + 10)}`,
-        color: '#2563eb',
+        name: storedUserName,
+        color: storedUserAvatar.color,
+        initials: storedUserAvatar.initials,
     },
     collaborators: new Map(),
     mouse: {
@@ -77,6 +82,8 @@ function setupLobby() {
 
         if (name) {
             localStorage.setItem('whiteboard:userName', name);
+        } else {
+            localStorage.removeItem('whiteboard:userName');
         }
 
         return name;

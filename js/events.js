@@ -170,9 +170,9 @@ function updateRemoteCursors() {
 
     if (presence) {
         presence.innerHTML = `
-            <span class="avatar active" style="--avatar-color: ${app.localUser.color}">${app.localUser.name.slice(0, 2).toUpperCase()}</span>
+            <span class="avatar active" style="--avatar-color: ${app.localUser.color}" title="${app.localUser.name}">${app.localUser.initials}</span>
             ${[...app.collaborators.values()].map(user => (
-                `<span class="avatar" style="--avatar-color: ${user.color}">${user.name.slice(0, 2).toUpperCase()}</span>`
+                `<span class="avatar" style="--avatar-color: ${user.color}" title="${user.name}">${user.initials}</span>`
             )).join('')}
         `;
     }

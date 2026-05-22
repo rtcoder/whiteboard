@@ -1,4 +1,5 @@
 import {app} from './main.js';
+import {getUserAvatar} from './utils.js';
 
 let socket = null;
 let clientId = crypto.randomUUID();
@@ -66,6 +67,7 @@ export function sendCursorPosition(point) {
         y: point.y,
         name: app.localUser.name,
         color: app.localUser.color,
+        initials: app.localUser.initials,
     });
 }
 
@@ -106,7 +108,8 @@ export function initNetwork({render, onPeersChange}) {
             app.collaborators.set(message.clientId, {
                 id: message.clientId,
                 name: message.name || 'Guest',
-                color: message.color || '#10b981',
+                color: message.color || getUserAvatar(message.name || 'Guest').color,
+                initials: message.initials || getUserAvatar(message.name || 'Guest').initials,
                 x: message.x,
                 y: message.y,
             });
