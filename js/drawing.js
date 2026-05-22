@@ -1,5 +1,12 @@
 import {app} from './main.js';
 
+function getCanvasPoint(x, y) {
+    return {
+        x: x * (1 / app.zoom.scale) - app.zoom.offsetX,
+        y: y * (1 / app.zoom.scale) - app.zoom.offsetY,
+    };
+}
+
 export function draw() {
     if (!app.isDrawing || app.currentTool === 'fill') {
         return;
@@ -13,12 +20,12 @@ export function draw() {
     } else if (app.currentTool === 'eraser') {
         app.ctx.strokeStyle = 'white';
     }
-    const {x, y} = app.mouse;
+    const {x, y} = getCanvasPoint(app.mouse.x, app.mouse.y);
 
-    app.ctx.lineTo(x * (1 / app.zoom.scale), y * (1 / app.zoom.scale));
+    app.ctx.lineTo(x, y);
     app.ctx.stroke();
     app.ctx.beginPath();
-    app.ctx.moveTo(x * (1 / app.zoom.scale), y * (1 / app.zoom.scale));
+    app.ctx.moveTo(x, y);
 }
 
 export function clear() {
@@ -28,8 +35,9 @@ export function clear() {
 }
 
 export function floodFill(x, y, fillColor) {
-    x = Math.floor(x * (1 / app.zoom.scale));
-    y = Math.floor(y * (1 / app.zoom.scale));
+    const point = getCanvasPoint(x, y);
+    x = Math.floor(point.x);
+    y = Math.floor(point.y);
 
     if (x < 0 || x >= app.canvas.width || y < 0 || y >= app.canvas.height) {
         return;
