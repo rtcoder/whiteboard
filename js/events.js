@@ -427,7 +427,7 @@ export function initEvents() {
         const [object] = app.objects.splice(objectIndex, 1);
         app.selectedObjectId = null;
         render();
-        broadcastBoardState();
+        broadcastBoardState({mode: 'replace'});
         broadcastActivity('object-deleted', {
             objectName: getObjectName(object),
         });

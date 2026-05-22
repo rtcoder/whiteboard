@@ -44,7 +44,7 @@ export function undo() {
     app.objects = app.history.undo.pop();
     app.selectedObjectId = null;
     render();
-    broadcastBoardState();
+    broadcastBoardState({mode: 'replace'});
     return true;
 }
 
@@ -57,7 +57,7 @@ export function redo() {
     app.objects = app.history.redo.pop();
     app.selectedObjectId = null;
     render();
-    broadcastBoardState();
+    broadcastBoardState({mode: 'replace'});
     return true;
 }
 
@@ -71,7 +71,7 @@ export function clear(commit = true) {
     app.objects = [];
     app.selectedObjectId = null;
     render();
-    broadcastBoardState();
+    broadcastBoardState({mode: 'replace'});
     return hadObjects;
 }
 

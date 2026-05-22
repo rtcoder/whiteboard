@@ -282,11 +282,14 @@ server.on('upgrade', (req, socket) => {
         }
 
         if (message.type === 'board-state') {
-            room.boardState = mergeBoardState(room.boardState, message.objects || []);
+            room.boardState = message.mode === 'replace'
+                ? message.objects || []
+                : mergeBoardState(room.boardState, message.objects || []);
             room.revision += 1;
             logWs('room state saved', {
                 roomId,
                 revision: room.revision,
+                mode: message.mode || 'merge',
                 objects: room.boardState.length,
                 bitmapObjects: room.boardState.filter(object => object.type === 'bitmap').length,
                 clients: room.clients.size,

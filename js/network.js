@@ -130,7 +130,7 @@ export function isApplyingRemoteState() {
     return suppressBroadcast;
 }
 
-export function broadcastBoardState() {
+export function broadcastBoardState({mode = 'merge'} = {}) {
     if (suppressBroadcast) {
         logNetwork('skip board-state broadcast while applying remote state');
         return;
@@ -142,6 +142,7 @@ export function broadcastBoardState() {
     saveLocalBoardState(objects);
     logNetwork('broadcast board-state requested', {
         revision,
+        mode,
         objects: objects.length,
         bitmapObjects: objects.filter(object => object.type === 'bitmap').length,
     });
@@ -149,6 +150,7 @@ export function broadcastBoardState() {
     send({
         type: 'board-state',
         revision,
+        mode,
         objects,
     });
 }
