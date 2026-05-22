@@ -38,6 +38,7 @@ body.lobby-active {
 }
 
 body.lobby-active canvas,
+body.lobby-active #whiteboardSvg,
 body.lobby-active .draw-handler,
 body.lobby-active .workspace-bar,
 body.lobby-active .toolbar,
@@ -188,12 +189,28 @@ svg, img {
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
 }
 
-#whiteboard {
+#whiteboard,
+#whiteboardSvg {
     cursor: none;
     position: fixed;
     transform: scale(0.2);
     transform-origin:top left;
+}
+
+#whiteboard {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#whiteboardSvg {
+    overflow: visible;
     box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+    background: #fff;
+    pointer-events: none;
+}
+
+#whiteboardSvg text {
+    user-select: none;
 }
 
 .draw-handler {

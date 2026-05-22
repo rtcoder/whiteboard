@@ -3,6 +3,8 @@ import {broadcastBoardState} from './network.js';
 import {createId, getCanvasPoint} from './utils.js';
 
 const FLOOD_FILL_TOLERANCE = 64;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const bitmapUrlCache = new WeakMap();
 
 function cloneImageData(imageData) {
     return new ImageData(new Uint8ClampedArray(imageData.data), imageData.width, imageData.height);
@@ -76,7 +78,53 @@ export function clear(commit = true) {
 }
 
 function clearCanvas() {
-    app.ctx.clearRect(0, 0, app.canvas.width, app.canvas.height);
+    app.ctx.fillStyle = 'white';
+    app.ctx.fillRect(0, 0, app.canvas.width, app.canvas.height);
+}
+
+function createSvgElement(name, attrs = {}) {
+    const element = document.createElementNS(SVG_NS, name);
+
+    Object.entries(attrs).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+            element.setAttribute(key, value);
+        }
+    });
+
+    return element;
+}
+
+function setSvgAttrs(element, attrs) {
+    Object.entries(attrs).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+            element.setAttribute(key, value);
+        }
+    });
+}
+
+function getPathData(points) {
+    if (!points.length) {
+        return '';
+    }
+
+    return points
+        .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+        .join(' ');
+}
+
+function imageDataToDataUrl(imageData) {
+    if (bitmapUrlCache.has(imageData)) {
+        return bitmapUrlCache.get(imageData);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = imageData.width;
+    canvas.height = imageData.height;
+    canvas.getContext('2d').putImageData(imageData, 0, 0);
+
+    const url = canvas.toDataURL('image/png');
+    bitmapUrlCache.set(imageData, url);
+    return url;
 }
 
 function drawPath(object) {
@@ -310,6 +358,233 @@ function drawSelection(object) {
     app.ctx.restore();
 }
 
+function createSvgPath(object) {
+    if (object.points.length < 2) {
+        return null;
+    }
+
+    return createSvgElement('path', {
+        d: getPathData(object.points),
+        fill: 'none',
+        stroke: object.color,
+        'stroke-width': object.lineWidth,
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        opacity: object.opacity || 1,
+    });
+}
+
+function createSvgArrowHead(object) {
+    const angle = Math.atan2(object.y2 - object.y, object.x2 - object.x);
+    const size = Math.max(14, object.lineWidth * 2.6);
+    const left = {
+        x: object.x2 - size * Math.cos(angle - Math.PI / 6),
+        y: object.y2 - size * Math.sin(angle - Math.PI / 6),
+    };
+    const right = {
+        x: object.x2 - size * Math.cos(angle + Math.PI / 6),
+        y: object.y2 - size * Math.sin(angle + Math.PI / 6),
+    };
+
+    return createSvgElement('polygon', {
+        points: `${object.x2},${object.y2} ${left.x},${left.y} ${right.x},${right.y}`,
+        fill: object.color,
+    });
+}
+
+function createSvgShape(object) {
+    const x = Math.min(object.x, object.x2);
+    const y = Math.min(object.y, object.y2);
+    const width = Math.abs(object.x2 - object.x);
+    const height = Math.abs(object.y2 - object.y);
+    const common = {
+        fill: object.fill || 'transparent',
+        stroke: object.color,
+        'stroke-width': object.lineWidth,
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+    };
+
+    if (object.type === 'rectangle') {
+        return createSvgElement('rect', {
+            ...common,
+            x,
+            y,
+            width,
+            height,
+        });
+    }
+
+    if (object.type === 'ellipse') {
+        return createSvgElement('ellipse', {
+            ...common,
+            cx: x + width / 2,
+            cy: y + height / 2,
+            rx: width / 2,
+            ry: height / 2,
+        });
+    }
+
+    if (object.type === 'line' || object.type === 'arrow') {
+        const group = createSvgElement('g');
+        group.appendChild(createSvgElement('line', {
+            x1: object.x,
+            y1: object.y,
+            x2: object.x2,
+            y2: object.y2,
+            stroke: object.color,
+            'stroke-width': object.lineWidth,
+            'stroke-linecap': 'round',
+        }));
+
+        if (object.type === 'arrow') {
+            group.appendChild(createSvgArrowHead(object));
+        }
+
+        return group;
+    }
+
+    return null;
+}
+
+function createSvgTextLines(object, parent, x, y, maxChars, padding = 0) {
+    const text = createSvgElement('text', {
+        x: x + padding,
+        y: y + padding,
+        fill: object.color,
+        'font-size': object.fontSize,
+        'font-family': 'Inter, system-ui, sans-serif',
+        'font-weight': object.fontWeight || 600,
+        'dominant-baseline': 'text-before-edge',
+    });
+
+    wrapText(object.text, maxChars).forEach((line, index) => {
+        const tspan = createSvgElement('tspan', {
+            x: x + padding,
+            dy: index === 0 ? 0 : object.fontSize * 1.25,
+        });
+        tspan.textContent = line;
+        text.appendChild(tspan);
+    });
+
+    parent.appendChild(text);
+}
+
+function createSvgTextObject(object) {
+    if (object.type === 'text') {
+        const group = createSvgElement('g');
+        createSvgTextLines(object, group, object.x, object.y, 32);
+        return group;
+    }
+
+    const group = createSvgElement('g');
+    group.appendChild(createSvgElement('rect', {
+        x: object.x,
+        y: object.y,
+        width: object.width,
+        height: object.height,
+        rx: 14,
+        ry: 14,
+        fill: object.fill,
+        stroke: 'rgba(15, 23, 42, 0.14)',
+        'stroke-width': 2,
+    }));
+    createSvgTextLines(object, group, object.x, object.y, 18, 18);
+    return group;
+}
+
+function createSvgBitmap(object) {
+    return createSvgElement('image', {
+        x: object.x,
+        y: object.y,
+        width: object.width,
+        height: object.height,
+        href: imageDataToDataUrl(object.imageData),
+        preserveAspectRatio: 'none',
+    });
+}
+
+function createSvgSelection(object) {
+    const bounds = getBounds(object);
+
+    if (!bounds) {
+        return null;
+    }
+
+    return createSvgElement('rect', {
+        x: bounds.x - 8,
+        y: bounds.y - 8,
+        width: bounds.width + 16,
+        height: bounds.height + 16,
+        fill: 'none',
+        stroke: '#2563eb',
+        'stroke-width': 2,
+        'stroke-dasharray': '8 6',
+        'vector-effect': 'non-scaling-stroke',
+    });
+}
+
+function appendSvgObject(object, parent = app.svg) {
+    let element = null;
+
+    if (object.type === 'bitmap') {
+        element = createSvgBitmap(object);
+    } else if (object.type === 'path') {
+        element = createSvgPath(object);
+    } else if (['line', 'arrow', 'rectangle', 'ellipse'].includes(object.type)) {
+        element = createSvgShape(object);
+    } else if (object.type === 'text' || object.type === 'sticky') {
+        element = createSvgTextObject(object);
+    }
+
+    if (!element) {
+        return;
+    }
+
+    setSvgAttrs(element, {
+        'data-object-id': object.id,
+        'data-object-type': object.type,
+    });
+    parent.appendChild(element);
+}
+
+function renderSvg(showSelection = true) {
+    app.svg.replaceChildren();
+    const deferredObjects = new Set();
+
+    for (const object of app.objects) {
+        if (object.type === 'bitmap' && object.linkedObjectIds?.length) {
+            appendSvgObject(object);
+            object.linkedObjectIds.forEach(id => deferredObjects.add(id));
+        }
+    }
+
+    for (const object of app.objects) {
+        if (deferredObjects.has(object.id)) {
+            continue;
+        }
+
+        appendSvgObject(object);
+    }
+
+    for (const object of app.objects) {
+        if (deferredObjects.has(object.id)) {
+            appendSvgObject(object);
+        }
+    }
+
+    if (app.draftObject) {
+        appendSvgObject(app.draftObject);
+    }
+
+    const selectedObject = showSelection ? app.objects.find(object => object.id === app.selectedObjectId) : null;
+    const selection = selectedObject ? createSvgSelection(selectedObject) : null;
+
+    if (selection) {
+        app.svg.appendChild(selection);
+    }
+}
+
 export function render(showSelection = true) {
     clearCanvas();
     const deferredObjects = new Set();
@@ -355,6 +630,8 @@ export function render(showSelection = true) {
     if (selectedObject) {
         drawSelection(selectedObject);
     }
+
+    renderSvg(showSelection);
 }
 
 export function createPath(point, color, lineWidth, opacity = 1) {

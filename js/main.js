@@ -12,6 +12,7 @@ const storedUserAvatar = getUserAvatar(storedUserName, `${storedUserName}:${stor
 export const app = {
     canvas: null,
     ctx: null,
+    svg: null,
     cursor: null,
     allTools: [],
     currentTool: 'pen',
@@ -54,6 +55,7 @@ export const app = {
 };
 app.canvas = document.querySelector('#whiteboard');
 app.ctx = app.canvas.getContext('2d');
+app.svg = document.querySelector('#whiteboardSvg');
 app.allTools = document.querySelectorAll('.tool');
 window.whiteboardApp = app;
 
@@ -67,6 +69,9 @@ export function setMousePosition(e) {
 function resizeCanvas() {
     app.canvas.width = window.innerWidth * 5;
     app.canvas.height = window.innerHeight * 5;
+    app.svg.setAttribute('width', app.canvas.width);
+    app.svg.setAttribute('height', app.canvas.height);
+    app.svg.setAttribute('viewBox', `0 0 ${app.canvas.width} ${app.canvas.height}`);
     render();
 }
 

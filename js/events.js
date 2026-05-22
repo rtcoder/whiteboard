@@ -43,6 +43,7 @@ function setActiveTool(button) {
 function applyCanvasTransform() {
     clampZoomOffset();
     app.canvas.style.transform = getCanvasTransform();
+    app.svg.style.transform = getCanvasTransform();
     updateRemoteCursors();
 }
 
