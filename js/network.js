@@ -126,6 +126,12 @@ export function getClientId() {
     return clientId;
 }
 
+function refreshLocalUserAvatar() {
+    const avatar = getUserAvatar(app.localUser.name, `${app.localUser.name}:${clientId}`);
+    app.localUser.color = avatar.color;
+    app.localUser.initials = avatar.initials;
+}
+
 export function isApplyingRemoteState() {
     return suppressBroadcast;
 }
@@ -198,6 +204,8 @@ export function sendCursorPosition(point) {
 export function initNetwork({render, onPeersChange}) {
     renderBoard = render;
     updatePeers = onPeersChange;
+    clientId = app.clientId || clientId;
+    refreshLocalUserAvatar();
 
     if (!app.roomId) {
         return;
@@ -262,6 +270,8 @@ export function initNetwork({render, onPeersChange}) {
 
         if (message.type === 'init') {
             clientId = message.clientId;
+            app.clientId = clientId;
+            refreshLocalUserAvatar();
             currentRevision = message.revision || 0;
             addActivityEntries(message.activityLog || []);
             const boardState = message.boardState?.length ? message.boardState : loadLocalBoardState();
@@ -307,11 +317,12 @@ export function initNetwork({render, onPeersChange}) {
         }
 
         if (message.type === 'cursor') {
+            const fallbackAvatar = getUserAvatar(message.name || 'Guest', `${message.name || 'Guest'}:${message.clientId}`);
             app.collaborators.set(message.clientId, {
                 id: message.clientId,
                 name: message.name || 'Guest',
-                color: message.color || getUserAvatar(message.name || 'Guest').color,
-                initials: message.initials || getUserAvatar(message.name || 'Guest').initials,
+                color: message.color || fallbackAvatar.color,
+                initials: message.initials || fallbackAvatar.initials,
                 x: message.x,
                 y: message.y,
             });

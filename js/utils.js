@@ -48,8 +48,9 @@ export function createId(prefix = 'object') {
     return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export function getUserAvatar(name) {
+export function getUserAvatar(name, seed = '') {
     const normalizedName = name.trim() || 'Guest';
+    const normalizedSeed = seed || normalizedName;
     const initials = normalizedName
         .split(/\s+/)
         .slice(0, 2)
@@ -58,8 +59,8 @@ export function getUserAvatar(name) {
         .toUpperCase();
 
     let hash = 0;
-    for (let index = 0; index < normalizedName.length; index++) {
-        hash = normalizedName.charCodeAt(index) + ((hash << 5) - hash);
+    for (let index = 0; index < normalizedSeed.length; index++) {
+        hash = normalizedSeed.charCodeAt(index) + ((hash << 5) - hash);
         hash |= 0;
     }
 

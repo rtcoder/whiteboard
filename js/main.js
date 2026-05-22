@@ -5,7 +5,9 @@ import {initActivityPanel} from './activity.js';
 import {getUserAvatar} from './utils.js';
 
 const storedUserName = localStorage.getItem('whiteboard:userName') || `Guest ${Math.floor(Math.random() * 90 + 10)}`;
-const storedUserAvatar = getUserAvatar(storedUserName);
+const storedClientId = localStorage.getItem('whiteboard:clientId') || crypto.randomUUID();
+localStorage.setItem('whiteboard:clientId', storedClientId);
+const storedUserAvatar = getUserAvatar(storedUserName, `${storedUserName}:${storedClientId}`);
 
 export const app = {
     canvas: null,
@@ -29,6 +31,7 @@ export const app = {
         moved: false,
     },
     roomId: null,
+    clientId: storedClientId,
     localUser: {
         name: storedUserName,
         color: storedUserAvatar.color,
