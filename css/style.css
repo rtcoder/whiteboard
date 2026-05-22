@@ -47,6 +47,37 @@ svg, img {
     transform: translate(-50%, -50%);
 }
 
+.remote-cursor {
+    position: fixed;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    pointer-events: none;
+    transform: translate(0, 0);
+    transition: left 0.28s ease, top 0.28s ease;
+}
+
+.remote-cursor::before {
+    content: "";
+    width: 0;
+    height: 0;
+    border-top: 13px solid var(--remote-color);
+    border-right: 9px solid transparent;
+    filter: drop-shadow(0 3px 5px rgba(15, 23, 42, 0.2));
+}
+
+.remote-cursor span {
+    display: block;
+    padding: 4px 7px;
+    border-radius: 999px;
+    background: var(--remote-color);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+}
+
 #whiteboard {
     cursor: none;
     position: fixed;

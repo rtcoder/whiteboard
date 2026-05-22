@@ -1,7 +1,7 @@
 .toolbar {
     --toolbar-background-color: rgba(255, 255, 255, 0.94);
-    --toolbar-width: min(540px, calc(100dvw - 28px));
-    --toolbar-height: 64px;
+    --toolbar-width: min(920px, calc(100dvw - 28px));
+    --toolbar-height: 60px;
     position: fixed;
     z-index: 2;
     display: flex;
@@ -21,8 +21,7 @@
     &:is(.left,.right) {
         top: 50%;
         width: var(--toolbar-height);
-        height: auto;
-        max-height: calc(100dvh - 120px);
+        height: min(720px, calc(100dvh - 120px));
 
         .move-handler {
             top: 50%;
@@ -35,12 +34,16 @@
         .tool-settings {
             flex-direction: column;
         }
+
+        .toolbar-content {
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
     }
 
     &:is(.top,.bottom) {
         left: 50%;
-        width: max-content;
-        max-width: var(--toolbar-width);
+        width: var(--toolbar-width);
         min-height: var(--toolbar-height);
 
         .move-handler {
@@ -160,22 +163,32 @@
     .toolbar-content {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
+        width: 100%;
         max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
         opacity: 1;
-        scrollbar-width: none;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
         transition: opacity 0.2s ease-in;
     }
 
     .toolbar-content::-webkit-scrollbar {
-        display: none;
+        height: 4px;
+        width: 4px;
+    }
+
+    .toolbar-content::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: rgba(100, 116, 139, 0.35);
     }
 
     .tool-group {
         display: flex;
         align-items: center;
         gap: 4px;
-        padding: 4px;
+        padding: 3px;
         border: 1px solid rgba(15, 23, 42, 0.08);
         border-radius: 14px;
         background: rgba(248, 250, 252, 0.88);
@@ -195,7 +208,8 @@
         display: grid;
         place-items: center;
         width: 40px;
-        height: 40px;
+        height: 38px;
+        width: 38px;
         border: none;
         border-radius: 11px;
         background: transparent;
@@ -237,7 +251,8 @@
         align-items: center;
         justify-content: center;
         width: 40px;
-        height: 40px;
+        height: 38px;
+        width: 38px;
         border-radius: 11px;
         cursor: pointer;
 
@@ -313,6 +328,17 @@
 
         &:is(.top,.bottom) {
             padding-inline: 6px;
+        }
+
+        button,
+        .line-width-preview {
+            width: 36px;
+            height: 36px;
+        }
+
+        button svg {
+            width: 22px;
+            height: 22px;
         }
     }
 }

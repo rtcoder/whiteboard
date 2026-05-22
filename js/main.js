@@ -1,4 +1,4 @@
-import {clear} from './drawing.js';
+import {clear, render} from './drawing.js';
 import {initEvents} from './events.js';
 
 export const app = {
@@ -10,6 +10,22 @@ export const app = {
     fillColor: 'black',
     lineWidth: 5,
     isDrawing: false,
+    objects: [],
+    draftObject: null,
+    selectedObjectId: null,
+    history: {
+        undo: [],
+        redo: [],
+    },
+    drag: {
+        start: null,
+        last: null,
+        moved: false,
+    },
+    collaborators: [
+        {id: 'mk', name: 'MK', color: '#10b981', x: 720, y: 360},
+        {id: 'a', name: 'A', color: '#f97316', x: 980, y: 620},
+    ],
     mouse: {
         x: 0,
         y: 0,
@@ -26,6 +42,7 @@ export const app = {
 app.canvas = document.querySelector('#whiteboard');
 app.ctx = app.canvas.getContext('2d');
 app.allTools = document.querySelectorAll('.tool');
+window.whiteboardApp = app;
 
 export function setMousePosition(e) {
     const ev = e.touches?.[0] || e;
@@ -37,8 +54,9 @@ export function setMousePosition(e) {
 function resizeCanvas() {
     app.canvas.width = window.innerWidth * 5;
     app.canvas.height = window.innerHeight * 5;
+    render();
 }
 
-initEvents();
 resizeCanvas();
-clear();
+clear(false);
+initEvents();
