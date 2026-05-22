@@ -75,7 +75,9 @@ function getRoomIdFromPath() {
 function setupLobby() {
     document.body.classList.add('lobby-active');
     const userNameInput = document.getElementById('userName');
+    const boardNameInput = document.getElementById('boardName');
     userNameInput.value = localStorage.getItem('whiteboard:userName') || '';
+    boardNameInput.value = localStorage.getItem('whiteboard:lastBoardName') || '';
 
     const saveUserName = () => {
         const name = userNameInput.value.trim();
@@ -91,7 +93,17 @@ function setupLobby() {
 
     document.getElementById('newWhiteboard').addEventListener('click', () => {
         saveUserName();
-        window.location.href = `/${crypto.randomUUID()}`;
+        const roomId = crypto.randomUUID();
+        const boardName = boardNameInput.value.trim();
+
+        if (boardName) {
+            localStorage.setItem(`whiteboard:boardName:${roomId}`, boardName);
+            localStorage.setItem('whiteboard:lastBoardName', boardName);
+        } else {
+            localStorage.removeItem('whiteboard:lastBoardName');
+        }
+
+        window.location.href = `/${roomId}`;
     });
 
     document.getElementById('joinWhiteboard').addEventListener('submit', event => {

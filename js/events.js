@@ -197,7 +197,8 @@ async function copyShareLink() {
 export function initEvents() {
     document.addEventListener('contextmenu', e => e.preventDefault());
     window.updateRemoteCursors = updateRemoteCursors;
-    document.querySelector('.board-title span:last-child').textContent = `Whiteboard / ${app.roomId.slice(0, 8)}`;
+    const boardName = localStorage.getItem(`whiteboard:boardName:${app.roomId}`) || `Whiteboard / ${app.roomId.slice(0, 8)}`;
+    document.querySelector('.board-title span:last-child').textContent = boardName;
     shareButton.addEventListener('click', copyShareLink);
     fillColorInput.addEventListener('input', () => {
         app.fillColor = fillColorInput.value;
