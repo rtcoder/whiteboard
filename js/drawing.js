@@ -37,7 +37,7 @@ export function saveHistory() {
 
 export function undo() {
     if (!app.history.undo.length) {
-        return;
+        return false;
     }
 
     app.history.redo.push(cloneObjects(app.objects));
@@ -45,11 +45,12 @@ export function undo() {
     app.selectedObjectId = null;
     render();
     broadcastBoardState();
+    return true;
 }
 
 export function redo() {
     if (!app.history.redo.length) {
-        return;
+        return false;
     }
 
     app.history.undo.push(cloneObjects(app.objects));
@@ -57,9 +58,12 @@ export function redo() {
     app.selectedObjectId = null;
     render();
     broadcastBoardState();
+    return true;
 }
 
 export function clear(commit = true) {
+    const hadObjects = app.objects.length > 0;
+
     if (commit) {
         saveHistory();
     }
@@ -68,6 +72,7 @@ export function clear(commit = true) {
     app.selectedObjectId = null;
     render();
     broadcastBoardState();
+    return hadObjects;
 }
 
 function clearCanvas() {
@@ -285,7 +290,10 @@ function fillObjectAt(point, fillColor) {
     render();
     broadcastBoardState();
 
-    return true;
+    return {
+        color: rgbaToCss(fillColor),
+        objectType: object.type,
+    };
 }
 
 function drawSelection(object) {
@@ -472,8 +480,10 @@ export function draw() {
 export function floodFill(x, y, fillColor) {
     const point = getCanvasPoint(x, y);
 
-    if (fillObjectAt(point, fillColor)) {
-        return;
+    const objectFill = fillObjectAt(point, fillColor);
+
+    if (objectFill) {
+        return objectFill;
     }
 
     render(false);
@@ -624,4 +634,9 @@ export function floodFill(x, y, fillColor) {
     });
     render();
     broadcastBoardState();
+
+    return {
+        color: rgbaToCss(fillColor),
+        objectType: linkedObjectIds.length ? 'path' : 'bitmap',
+    };
 }

@@ -14,8 +14,9 @@ import {
     saveHistory,
     undo,
 } from './drawing.js';
+import {getObjectName} from './activity.js';
 import {app, setMousePosition} from './main.js';
-import {broadcastBoardState, sendCursorPosition} from './network.js';
+import {broadcastActivity, broadcastBoardState, sendCursorPosition} from './network.js';
 import {activateMovingToolbar, deactivateMovingToolbar, hideToolbar, moveToolbar, showToolbar} from './toolbar.js';
 import {clampZoomOffset, getCanvasPoint, getCanvasTransform, hexToRgba} from './utils.js';
 
@@ -82,6 +83,17 @@ function finishDraft() {
     app.selectedObjectId = object.id;
     render();
     broadcastBoardState();
+
+    if (['line', 'arrow', 'rectangle', 'ellipse'].includes(object.type)) {
+        broadcastActivity('shape-added', {
+            color: object.color,
+            objectType: object.type,
+        });
+    } else if (object.type === 'path' && app.currentTool !== 'eraser') {
+        broadcastActivity('tool-used', {
+            tool: app.currentTool === 'marker' ? 'marker' : 'pen',
+        });
+    }
 }
 
 function addTextObject(point, type) {
@@ -97,6 +109,9 @@ function addTextObject(point, type) {
     app.selectedObjectId = object.id;
     render();
     broadcastBoardState();
+    broadcastActivity(type === 'sticky' ? 'sticky-added' : 'text-added', {
+        text,
+    });
 }
 
 function moveSelectedObject(point) {
@@ -230,17 +245,27 @@ export function initEvents() {
             }
 
             if (toolbarButton.id === 'clear') {
-                clear();
+                if (clear()) {
+                    broadcastActivity('board-cleared');
+                }
                 return;
             }
 
             if (toolbarButton.id === 'undo') {
-                undo();
+                if (undo()) {
+                    broadcastActivity('history-used', {
+                        action: 'undo',
+                    });
+                }
                 return;
             }
 
             if (toolbarButton.id === 'redo') {
-                redo();
+                if (redo()) {
+                    broadcastActivity('history-used', {
+                        action: 'redo',
+                    });
+                }
                 return;
             }
         }
@@ -311,7 +336,14 @@ export function initEvents() {
         }
 
         if (app.currentTool === 'fill') {
-            floodFill(app.mouse.x, app.mouse.y, hexToRgba(app.fillColor));
+            const fillResult = floodFill(app.mouse.x, app.mouse.y, hexToRgba(app.fillColor));
+
+            if (fillResult) {
+                broadcastActivity('fill-used', {
+                    color: app.fillColor,
+                    objectType: fillResult.objectType,
+                });
+            }
             return;
         }
 
@@ -368,11 +400,37 @@ export function initEvents() {
 
         finishDraft();
         if (app.currentTool === 'select' && app.drag.moved) {
+            const movedObject = app.objects.find(item => item.id === app.selectedObjectId);
             broadcastBoardState();
+            broadcastActivity('object-moved', {
+                objectName: getObjectName(movedObject),
+            });
         }
         app.drag.start = null;
         app.drag.last = null;
         app.drag.moved = false;
+    });
+
+    window.addEventListener('keydown', event => {
+        if (!['Backspace', 'Delete'].includes(event.key) || !app.selectedObjectId) {
+            return;
+        }
+
+        const objectIndex = app.objects.findIndex(object => object.id === app.selectedObjectId);
+
+        if (objectIndex === -1) {
+            return;
+        }
+
+        event.preventDefault();
+        saveHistory();
+        const [object] = app.objects.splice(objectIndex, 1);
+        app.selectedObjectId = null;
+        render();
+        broadcastBoardState();
+        broadcastActivity('object-deleted', {
+            objectName: getObjectName(object),
+        });
     });
 
     window.addEventListener('wheel', e => {

@@ -10,6 +10,7 @@ const ROOT = __dirname;
 const rooms = new Map();
 const DEBUG_WS = true;
 const DEBUG_WS_CURSOR = false;
+const MAX_ACTIVITY_ITEMS = 200;
 const mimeTypes = {
     '.css': 'text/css',
     '.html': 'text/html',
@@ -61,6 +62,7 @@ function getRoom(roomId) {
             boardState: [],
             clients: new Set(),
             revision: 0,
+            activityLog: [],
         });
     }
 
@@ -151,6 +153,28 @@ function broadcast(room, sender, message) {
     }
 }
 
+function createActivity(kind, user, details = {}) {
+    return {
+        id: crypto.randomUUID(),
+        kind,
+        details,
+        timestamp: new Date().toISOString(),
+        user,
+    };
+}
+
+function addRoomActivity(room, event) {
+    room.activityLog = [...room.activityLog, event].slice(-MAX_ACTIVITY_ITEMS);
+}
+
+function broadcastActivity(room, sender, event) {
+    addRoomActivity(room, event);
+    broadcast(room, sender, {
+        type: 'activity',
+        event,
+    });
+}
+
 function mergeBoardState(currentObjects, incomingObjects) {
     const objectsById = new Map(currentObjects.map(object => [object.id, object]));
 
@@ -189,6 +213,12 @@ server.on('upgrade', (req, socket) => {
     const room = getRoom(roomId);
     socket.clientId = clientId;
     socket.roomId = roomId;
+    socket.user = {
+        id: clientId,
+        name: parsedUrl.query.name || 'Guest',
+        color: parsedUrl.query.color || '#2563eb',
+        initials: parsedUrl.query.initials || 'G',
+    };
     socket.frameBuffer = Buffer.alloc(0);
     socket.messageFragments = [];
     room.clients.add(socket);
@@ -203,9 +233,13 @@ server.on('upgrade', (req, socket) => {
         type: 'init',
         clientId,
         boardState: room.boardState,
+        activityLog: room.activityLog,
         revision: room.revision,
         peers: [...room.clients].filter(client => client !== socket).map(client => client.clientId),
     });
+
+    const joinEvent = createActivity('user-joined', socket.user);
+    broadcastActivity(room, null, joinEvent);
 
     broadcast(room, socket, {
         type: 'peer-joined',
@@ -261,6 +295,10 @@ server.on('upgrade', (req, socket) => {
                 type: 'board-ack',
                 revision: room.revision,
             });
+        }
+
+        if (message.type === 'activity' && message.event) {
+            addRoomActivity(room, message.event);
         }
 
         broadcast(room, socket, {
@@ -352,6 +390,9 @@ server.on('upgrade', (req, socket) => {
             type: 'peer-left',
             clientId,
         });
+
+        const leaveEvent = createActivity('user-left', socket.user);
+        broadcastActivity(room, socket, leaveEvent);
 
         if (!room.clients.size && !room.boardState.length) {
             rooms.delete(roomId);

@@ -1,6 +1,7 @@
 import {clear, render} from './drawing.js';
 import {initEvents} from './events.js';
 import {initNetwork} from './network.js';
+import {initActivityPanel} from './activity.js';
 import {getUserAvatar} from './utils.js';
 
 const storedUserName = localStorage.getItem('whiteboard:userName') || `Guest ${Math.floor(Math.random() * 90 + 10)}`;
@@ -34,6 +35,7 @@ export const app = {
         initials: storedUserAvatar.initials,
     },
     collaborators: new Map(),
+    activityLog: [],
     mouse: {
         x: 0,
         y: 0,
@@ -123,6 +125,7 @@ if (!app.roomId) {
     setupLobby();
 } else {
     clear(false);
+    initActivityPanel();
     initEvents();
     initNetwork({
         render,

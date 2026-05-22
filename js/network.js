@@ -1,4 +1,5 @@
 import {app} from './main.js';
+import {addActivityEntries} from './activity.js';
 import {getUserAvatar} from './utils.js';
 
 let socket = null;
@@ -152,6 +153,27 @@ export function broadcastBoardState() {
     });
 }
 
+export function broadcastActivity(kind, details = {}) {
+    const event = {
+        id: crypto.randomUUID(),
+        kind,
+        details,
+        timestamp: new Date().toISOString(),
+        user: {
+            id: clientId,
+            name: app.localUser.name,
+            color: app.localUser.color,
+            initials: app.localUser.initials,
+        },
+    };
+
+    addActivityEntries([event]);
+    send({
+        type: 'activity',
+        event,
+    });
+}
+
 export function sendCursorPosition(point) {
     const now = performance.now();
 
@@ -180,7 +202,14 @@ export function initNetwork({render, onPeersChange}) {
     }
 
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-    socket = new WebSocket(`${protocol}://${location.host}/ws?room=${app.roomId}&client=${clientId}`);
+    const params = new URLSearchParams({
+        room: app.roomId,
+        client: clientId,
+        name: app.localUser.name,
+        color: app.localUser.color,
+        initials: app.localUser.initials,
+    });
+    socket = new WebSocket(`${protocol}://${location.host}/ws?${params.toString()}`);
     logNetwork('connecting', {
         roomId: app.roomId,
         clientId,
@@ -232,6 +261,7 @@ export function initNetwork({render, onPeersChange}) {
         if (message.type === 'init') {
             clientId = message.clientId;
             currentRevision = message.revision || 0;
+            addActivityEntries(message.activityLog || []);
             const boardState = message.boardState?.length ? message.boardState : loadLocalBoardState();
             logNetwork('apply init state', {
                 revision: currentRevision,
@@ -284,6 +314,11 @@ export function initNetwork({render, onPeersChange}) {
                 y: message.y,
             });
             updatePeers();
+            return;
+        }
+
+        if (message.type === 'activity') {
+            addActivityEntries([message.event]);
             return;
         }
 
