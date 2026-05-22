@@ -8,6 +8,8 @@ const PORT = process.env.PORT || 8080;
 const HOST = process.env.HOST || '127.0.0.1';
 const ROOT = __dirname;
 const rooms = new Map();
+const DEBUG_WS = true;
+const DEBUG_WS_CURSOR = false;
 const mimeTypes = {
     '.css': 'text/css',
     '.html': 'text/html',
@@ -15,6 +17,12 @@ const mimeTypes = {
     '.json': 'application/json',
     '.svg': 'image/svg+xml',
 };
+
+function logWs(...args) {
+    if (DEBUG_WS) {
+        console.log('[whiteboard:ws]', ...args);
+    }
+}
 
 function sendFile(res, filePath) {
     const ext = path.extname(filePath);
@@ -52,6 +60,7 @@ function getRoom(roomId) {
         rooms.set(roomId, {
             boardState: [],
             clients: new Set(),
+            revision: 0,
         });
     }
 
@@ -75,21 +84,41 @@ function encodeFrame(payload) {
 }
 
 function decodeFrame(buffer) {
+    if (buffer.length < 2) {
+        return null;
+    }
+
+    const fin = Boolean(buffer[0] & 0x80);
     const opcode = buffer[0] & 15;
 
     if (opcode === 8) {
-        return null;
+        return {
+            consumed: 2,
+            fin,
+            opcode,
+            payload: null,
+        };
     }
 
     let length = buffer[1] & 127;
     let offset = 2;
 
     if (length === 126) {
+        if (buffer.length < offset + 2) {
+            return null;
+        }
         length = buffer.readUInt16BE(offset);
         offset += 2;
     } else if (length === 127) {
+        if (buffer.length < offset + 8) {
+            return null;
+        }
         length = Number(buffer.readBigUInt64BE(offset));
         offset += 8;
+    }
+
+    if (buffer.length < offset + 4 + length) {
+        return null;
     }
 
     const mask = buffer.slice(offset, offset + 4);
@@ -100,7 +129,12 @@ function decodeFrame(buffer) {
         payload[index] ^= mask[index % 4];
     }
 
-    return payload.toString('utf8');
+    return {
+        consumed: offset + length,
+        fin,
+        opcode,
+        payload,
+    };
 }
 
 function send(socket, message) {
@@ -115,6 +149,16 @@ function broadcast(room, sender, message) {
             send(client, message);
         }
     }
+}
+
+function mergeBoardState(currentObjects, incomingObjects) {
+    const objectsById = new Map(currentObjects.map(object => [object.id, object]));
+
+    for (const object of incomingObjects) {
+        objectsById.set(object.id, object);
+    }
+
+    return [...objectsById.values()];
 }
 
 server.on('upgrade', (req, socket) => {
@@ -145,12 +189,21 @@ server.on('upgrade', (req, socket) => {
     const room = getRoom(roomId);
     socket.clientId = clientId;
     socket.roomId = roomId;
+    socket.frameBuffer = Buffer.alloc(0);
+    socket.messageFragments = [];
     room.clients.add(socket);
+    logWs('client connected', {
+        roomId,
+        clientId,
+        clients: room.clients.size,
+        storedObjects: room.boardState.length,
+    });
 
     send(socket, {
         type: 'init',
         clientId,
         boardState: room.boardState,
+        revision: room.revision,
         peers: [...room.clients].filter(client => client !== socket).map(client => client.clientId),
     });
 
@@ -159,10 +212,13 @@ server.on('upgrade', (req, socket) => {
         clientId,
     });
 
-    socket.on('data', buffer => {
-        const payload = decodeFrame(buffer);
+    const handlePayload = payload => {
 
         if (!payload) {
+            logWs('close frame', {
+                roomId,
+                clientId,
+            });
             socket.end();
             return;
         }
@@ -170,26 +226,128 @@ server.on('upgrade', (req, socket) => {
         let message;
         try {
             message = JSON.parse(payload);
-        } catch {
+        } catch (error) {
+            logWs('payload parse error', {
+                roomId,
+                clientId,
+                bytes: payload.length,
+                error: error.message,
+            });
             return;
         }
 
+        if (message.type !== 'cursor' || DEBUG_WS_CURSOR) {
+            logWs('message received', {
+                roomId,
+                clientId,
+                type: message.type,
+                bytes: payload.length,
+                objects: message.objects?.length,
+                bitmapObjects: message.objects?.filter(object => object.type === 'bitmap').length,
+            });
+        }
+
         if (message.type === 'board-state') {
-            room.boardState = message.objects || [];
+            room.boardState = mergeBoardState(room.boardState, message.objects || []);
+            room.revision += 1;
+            logWs('room state saved', {
+                roomId,
+                revision: room.revision,
+                objects: room.boardState.length,
+                bitmapObjects: room.boardState.filter(object => object.type === 'bitmap').length,
+                clients: room.clients.size,
+            });
+            send(socket, {
+                type: 'board-ack',
+                revision: room.revision,
+            });
         }
 
         broadcast(room, socket, {
             ...message,
             clientId,
+            objects: message.type === 'board-state' ? room.boardState : message.objects,
+            revision: room.revision,
         });
+    };
+
+    socket.on('data', buffer => {
+        socket.frameBuffer = Buffer.concat([socket.frameBuffer, buffer]);
+        if (buffer.length > 1024) {
+            logWs('data chunk', {
+                roomId,
+                clientId,
+                chunkBytes: buffer.length,
+                bufferedBytes: socket.frameBuffer.length,
+            });
+        }
+
+        while (socket.frameBuffer.length) {
+            const frame = decodeFrame(socket.frameBuffer);
+
+            if (!frame) {
+                break;
+            }
+
+            socket.frameBuffer = socket.frameBuffer.slice(frame.consumed);
+
+            if (frame.opcode === 8) {
+                handlePayload(null);
+                continue;
+            }
+
+            if (frame.opcode === 9) {
+                continue;
+            }
+
+            if (frame.opcode === 1 && frame.fin) {
+                handlePayload(frame.payload.toString('utf8'));
+                continue;
+            }
+
+            if (frame.opcode === 1) {
+                socket.messageFragments = [frame.payload];
+                logWs('fragmented message started', {
+                    roomId,
+                    clientId,
+                    bytes: frame.payload.length,
+                });
+                continue;
+            }
+
+            if (frame.opcode === 0 && socket.messageFragments.length) {
+                socket.messageFragments.push(frame.payload);
+
+                if (frame.fin) {
+                    const payload = Buffer.concat(socket.messageFragments);
+                    socket.messageFragments = [];
+                    logWs('fragmented message completed', {
+                        roomId,
+                        clientId,
+                        bytes: payload.length,
+                    });
+                    handlePayload(payload.toString('utf8'));
+                }
+            }
+        }
     });
 
     socket.on('error', () => {
+        logWs('socket error', {
+            roomId,
+            clientId,
+        });
         room.clients.delete(socket);
     });
 
     socket.on('close', () => {
         room.clients.delete(socket);
+        logWs('client disconnected', {
+            roomId,
+            clientId,
+            clients: room.clients.size,
+            storedObjects: room.boardState.length,
+        });
         broadcast(room, socket, {
             type: 'peer-left',
             clientId,

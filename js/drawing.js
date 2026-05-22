@@ -2,6 +2,8 @@ import {app} from './main.js';
 import {broadcastBoardState} from './network.js';
 import {createId, getCanvasPoint} from './utils.js';
 
+const FLOOD_FILL_TOLERANCE = 64;
+
 function cloneImageData(imageData) {
     return new ImageData(new Uint8ClampedArray(imageData.data), imageData.width, imageData.height);
 }
@@ -216,7 +218,23 @@ function getBounds(object) {
         };
     }
 
+    if (object.type === 'bitmap') {
+        return {
+            x: object.x,
+            y: object.y,
+            width: object.width,
+            height: object.height,
+        };
+    }
+
     return null;
+}
+
+function boundsOverlap(a, b, padding = 0) {
+    return a.x - padding <= b.x + b.width &&
+        a.x + a.width + padding >= b.x &&
+        a.y - padding <= b.y + b.height &&
+        a.y + a.height + padding >= b.y;
 }
 
 function rgbaToCss(color) {
@@ -287,16 +305,34 @@ function drawSelection(object) {
 
 export function render(showSelection = true) {
     clearCanvas();
+    const deferredObjects = new Set();
 
     for (const object of app.objects) {
+        if (object.type === 'bitmap' && object.linkedObjectIds?.length) {
+            app.ctx.putImageData(object.imageData, object.x, object.y);
+            object.linkedObjectIds.forEach(id => deferredObjects.add(id));
+        }
+    }
+
+    for (const object of app.objects) {
+        if (deferredObjects.has(object.id)) {
+            continue;
+        }
+
         if (object.type === 'bitmap') {
-            app.ctx.putImageData(object.imageData, 0, 0);
+            app.ctx.putImageData(object.imageData, object.x, object.y);
         } else if (object.type === 'path') {
             drawPath(object);
         } else if (['line', 'arrow', 'rectangle', 'ellipse'].includes(object.type)) {
             drawShape(object);
         } else if (object.type === 'text' || object.type === 'sticky') {
             drawTextObject(object);
+        }
+    }
+
+    for (const object of app.objects) {
+        if (deferredObjects.has(object.id)) {
+            drawPath(object);
         }
     }
 
@@ -369,7 +405,7 @@ export function createSticky(point, text) {
     };
 }
 
-export function moveObject(object, dx, dy) {
+function moveSingleObject(object, dx, dy) {
     if (object.points) {
         object.points.forEach(point => {
             point.x += dx;
@@ -385,6 +421,22 @@ export function moveObject(object, dx, dy) {
         object.x2 += dx;
         object.y2 += dy;
     }
+}
+
+export function moveObject(object, dx, dy) {
+    const objectsToMove = new Set([object]);
+
+    if (object.linkedObjectIds?.length) {
+        app.objects
+            .filter(item => object.linkedObjectIds.includes(item.id))
+            .forEach(item => objectsToMove.add(item));
+    }
+
+    app.objects
+        .filter(item => item.linkedObjectIds?.includes(object.id))
+        .forEach(item => objectsToMove.add(item));
+
+    objectsToMove.forEach(item => moveSingleObject(item, dx, dy));
 }
 
 export function findObjectAt(point) {
@@ -453,16 +505,29 @@ export function floodFill(x, y, fillColor) {
     }
 
     const stack = [{x, y}];
+    const filledPixels = new Uint8Array(width * height);
+    let minX = x;
+    let minY = y;
+    let maxX = x;
+    let maxY = y;
+    let filledCount = 0;
 
     const matchesTargetColor = (px, py) => {
         const offset = (py * width + px) * 4;
-        return data[offset] === targetColor[0] &&
-            data[offset + 1] === targetColor[1] &&
-            data[offset + 2] === targetColor[2] &&
-            data[offset + 3] === targetColor[3];
+        return Math.abs(data[offset] - targetColor[0]) <= FLOOD_FILL_TOLERANCE &&
+            Math.abs(data[offset + 1] - targetColor[1]) <= FLOOD_FILL_TOLERANCE &&
+            Math.abs(data[offset + 2] - targetColor[2]) <= FLOOD_FILL_TOLERANCE &&
+            Math.abs(data[offset + 3] - targetColor[3]) <= FLOOD_FILL_TOLERANCE;
     };
 
     const setFillColor = (px, py) => {
+        filledPixels[py * width + px] = 1;
+        filledCount++;
+        minX = Math.min(minX, px);
+        minY = Math.min(minY, py);
+        maxX = Math.max(maxX, px);
+        maxY = Math.max(maxY, py);
+
         const offset = (py * width + px) * 4;
         data[offset] = fillColor[0];
         data[offset + 1] = fillColor[1];
@@ -514,11 +579,48 @@ export function floodFill(x, y, fillColor) {
         }
     }
 
+    if (!filledCount) {
+        return;
+    }
+
+    const regionWidth = maxX - minX + 1;
+    const regionHeight = maxY - minY + 1;
+    const regionImageData = app.ctx.createImageData(regionWidth, regionHeight);
+    const regionBounds = {
+        x: minX,
+        y: minY,
+        width: regionWidth,
+        height: regionHeight,
+    };
+    const linkedObjectIds = app.objects
+        .filter(object => object.type === 'path')
+        .filter(object => boundsOverlap(regionBounds, getBounds(object), app.lineWidth * 2))
+        .map(object => object.id);
+
+    for (let py = minY; py <= maxY; py++) {
+        for (let px = minX; px <= maxX; px++) {
+            if (!filledPixels[py * width + px]) {
+                continue;
+            }
+
+            const targetOffset = ((py - minY) * regionWidth + (px - minX)) * 4;
+            regionImageData.data[targetOffset] = fillColor[0];
+            regionImageData.data[targetOffset + 1] = fillColor[1];
+            regionImageData.data[targetOffset + 2] = fillColor[2];
+            regionImageData.data[targetOffset + 3] = fillColor[3];
+        }
+    }
+
     saveHistory();
     app.objects.push({
         id: createId('bitmap'),
         type: 'bitmap',
-        imageData: cloneImageData(imageData),
+        x: minX,
+        y: minY,
+        width: regionWidth,
+        height: regionHeight,
+        linkedObjectIds,
+        imageData: regionImageData,
     });
     render();
     broadcastBoardState();
