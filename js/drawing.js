@@ -219,6 +219,57 @@ function getBounds(object) {
     return null;
 }
 
+function rgbaToCss(color) {
+    return `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3] / 255})`;
+}
+
+function isPointInsideFillableObject(point, object) {
+    if (object.type === 'rectangle') {
+        const x = Math.min(object.x, object.x2);
+        const y = Math.min(object.y, object.y2);
+        const width = Math.abs(object.x2 - object.x);
+        const height = Math.abs(object.y2 - object.y);
+
+        return point.x >= x && point.x <= x + width && point.y >= y && point.y <= y + height;
+    }
+
+    if (object.type === 'ellipse') {
+        const x = Math.min(object.x, object.x2);
+        const y = Math.min(object.y, object.y2);
+        const radiusX = Math.abs(object.x2 - object.x) / 2;
+        const radiusY = Math.abs(object.y2 - object.y) / 2;
+
+        if (!radiusX || !radiusY) {
+            return false;
+        }
+
+        const centerX = x + radiusX;
+        const centerY = y + radiusY;
+        const normalizedX = (point.x - centerX) / radiusX;
+        const normalizedY = (point.y - centerY) / radiusY;
+
+        return normalizedX * normalizedX + normalizedY * normalizedY <= 1;
+    }
+
+    return false;
+}
+
+function fillObjectAt(point, fillColor) {
+    const object = [...app.objects].reverse().find(item => isPointInsideFillableObject(point, item));
+
+    if (!object) {
+        return false;
+    }
+
+    saveHistory();
+    object.fill = rgbaToCss(fillColor);
+    app.selectedObjectId = object.id;
+    render();
+    broadcastBoardState();
+
+    return true;
+}
+
 function drawSelection(object) {
     const bounds = getBounds(object);
 
@@ -367,9 +418,14 @@ export function draw() {
 }
 
 export function floodFill(x, y, fillColor) {
+    const point = getCanvasPoint(x, y);
+
+    if (fillObjectAt(point, fillColor)) {
+        return;
+    }
+
     render(false);
 
-    const point = getCanvasPoint(x, y);
     x = Math.floor(point.x);
     y = Math.floor(point.y);
 
