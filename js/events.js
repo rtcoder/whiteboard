@@ -23,6 +23,7 @@ const fillColorInput = document.getElementById('fillColor');
 const linePreview = document.querySelector('.line-width-preview');
 const remoteCursors = document.querySelector('.remote-cursors');
 const presence = document.querySelector('.presence');
+const shareButton = document.querySelector('.share-button');
 
 function addListener(element, events, listener) {
     events.forEach(ev => {
@@ -177,10 +178,27 @@ function updateRemoteCursors() {
     }
 }
 
+async function copyShareLink() {
+    const shareUrl = `${window.location.origin}/${app.roomId}`;
+
+    try {
+        await navigator.clipboard.writeText(shareUrl);
+        shareButton.textContent = 'Copied';
+    } catch {
+        window.prompt('Copy board link', shareUrl);
+        shareButton.textContent = 'Copy link';
+    }
+
+    window.setTimeout(() => {
+        shareButton.textContent = 'Share';
+    }, 1600);
+}
+
 export function initEvents() {
     document.addEventListener('contextmenu', e => e.preventDefault());
     window.updateRemoteCursors = updateRemoteCursors;
     document.querySelector('.board-title span:last-child').textContent = `Whiteboard / ${app.roomId.slice(0, 8)}`;
+    shareButton.addEventListener('click', copyShareLink);
     fillColorInput.addEventListener('input', () => {
         app.fillColor = fillColorInput.value;
     });
