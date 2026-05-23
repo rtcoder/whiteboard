@@ -428,6 +428,27 @@ body.activity-open .activity-panel {
     transform: translateX(0);
 }
 
+.snapshot-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    width: min(360px, 100dvw);
+    height: 100dvh;
+    border-left: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: -24px 0 60px rgba(15, 23, 42, 0.16);
+    transform: translateX(100%);
+    transition: transform 0.24s ease;
+    backdrop-filter: blur(18px);
+}
+
+body.snapshot-open .snapshot-panel {
+    transform: translateX(0);
+}
+
 .activity-header {
     display: flex;
     align-items: center;
@@ -479,6 +500,74 @@ body.activity-open .activity-panel {
     padding: 16px;
     overflow-y: auto;
     list-style: none;
+}
+
+.snapshot-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+    padding: 16px;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.snapshot-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+.snapshot-item strong,
+.snapshot-item span {
+    display: block;
+}
+
+.snapshot-item strong {
+    font-size: 13px;
+}
+
+.snapshot-item span {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.snapshot-item button {
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid rgba(37, 99, 235, 0.24);
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+body.drag-import::after {
+    content: "Drop image to import";
+    position: fixed;
+    inset: 18px;
+    z-index: 8;
+    display: grid;
+    place-items: center;
+    border: 2px dashed rgba(37, 99, 235, 0.46);
+    border-radius: 18px;
+    background: rgba(239, 246, 255, 0.78);
+    color: var(--accent);
+    font-size: 18px;
+    font-weight: 850;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
 }
 
 .activity-item {

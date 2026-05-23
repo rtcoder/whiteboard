@@ -216,6 +216,25 @@ function mergeBoardState(currentObjects, incomingObjects) {
     return [...objectsById.values()];
 }
 
+function applyBoardOperation(currentObjects, operation = {}) {
+    const objectsById = new Map(currentObjects.map(object => [object.id, object]));
+
+    (operation.deleteIds || []).forEach(id => objectsById.delete(id));
+    (operation.upsert || []).forEach(object => {
+        objectsById.set(object.id, object);
+    });
+
+    if (operation.orderIds?.length) {
+        const orderedObjects = operation.orderIds
+            .map(id => objectsById.get(id))
+            .filter(Boolean);
+        const remainingObjects = [...objectsById.values()].filter(object => !operation.orderIds.includes(object.id));
+        return [...orderedObjects, ...remainingObjects];
+    }
+
+    return [...objectsById.values()];
+}
+
 server.on('upgrade', (req, socket) => {
     const parsedUrl = url.parse(req.url, true);
     const roomId = parsedUrl.query.room;
@@ -332,6 +351,24 @@ server.on('upgrade', (req, socket) => {
             });
         }
 
+        if (message.type === 'board-operation') {
+            room.boardState = applyBoardOperation(room.boardState, message.operation);
+            room.revision += 1;
+            logWs('room operation applied', {
+                roomId,
+                revision: room.revision,
+                upsert: message.operation?.upsert?.length || 0,
+                deleteIds: message.operation?.deleteIds?.length || 0,
+                objects: room.boardState.length,
+                clients: room.clients.size,
+            });
+            persistRoom(roomId, room);
+            send(socket, {
+                type: 'board-ack',
+                revision: room.revision,
+            });
+        }
+
         if (message.type === 'activity' && message.event) {
             addRoomActivity(room, message.event);
         }
@@ -340,6 +377,7 @@ server.on('upgrade', (req, socket) => {
             ...message,
             clientId,
             objects: message.type === 'board-state' ? room.boardState : message.objects,
+            operation: message.type === 'board-operation' ? message.operation : message.operation,
             revision: room.revision,
         });
     };

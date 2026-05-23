@@ -17,7 +17,9 @@ import {
     deleteObjectsByIds,
     duplicateObject,
     duplicateObjects,
+    exportBoardPdf,
     exportBoardPng,
+    exportBoardSvg,
     draw,
     findObjectAt,
     floodFill,
@@ -59,6 +61,9 @@ const imageImportInput = document.getElementById('imageImport');
 const minimap = document.querySelector('.minimap');
 const minimapSvg = document.querySelector('.minimap svg');
 const laserLayer = document.querySelector('.laser-layer');
+const snapshotPanel = document.querySelector('.snapshot-panel');
+const snapshotList = document.querySelector('.snapshot-list');
+const snapshotClose = document.querySelector('.snapshot-close');
 const selectionActionIds = ['duplicate', 'group', 'ungroup', 'lock', 'unlock', 'bringForward', 'sendBackward'];
 
 function addListener(element, events, listener) {
@@ -727,22 +732,57 @@ function getStoredSnapshots() {
     }
 }
 
-function chooseSnapshot() {
+function getAllSnapshots() {
     const snapshots = [...app.snapshots, ...getStoredSnapshots()]
         .filter((snapshot, index, all) => all.findIndex(item => item.id === snapshot.id) === index)
         .slice(-10);
 
-    if (!snapshots.length) {
-        return null;
+    return snapshots;
+}
+
+function renderSnapshotPanel() {
+    if (!snapshotList) {
+        return;
     }
 
-    const options = snapshots
-        .map((snapshot, index) => `${index + 1}. ${new Date(snapshot.timestamp).toLocaleString()}`)
-        .join('\n');
-    const answer = window.prompt(`Restore snapshot:\n${options}`, String(snapshots.length));
-    const index = Number.parseInt(answer, 10) - 1;
+    const snapshots = getAllSnapshots().slice().reverse();
 
-    return snapshots[index] || null;
+    if (!snapshots.length) {
+        snapshotList.innerHTML = '<li class="activity-empty">No snapshots yet</li>';
+        return;
+    }
+
+    snapshotList.innerHTML = snapshots.map(snapshot => `
+        <li class="snapshot-item">
+            <div>
+                <strong>${new Date(snapshot.timestamp).toLocaleString()}</strong>
+                <span>${snapshot.objects?.length || 0} objects</span>
+            </div>
+            <button type="button" data-snapshot-id="${snapshot.id}">Restore</button>
+        </li>
+    `).join('');
+}
+
+function openSnapshotPanel() {
+    renderSnapshotPanel();
+    document.body.classList.add('snapshot-open');
+}
+
+function closeSnapshotPanel() {
+    document.body.classList.remove('snapshot-open');
+}
+
+function restoreSnapshot(snapshot) {
+    if (!snapshot) {
+        return;
+    }
+
+    saveHistory();
+    app.objects = cloneObjects(snapshot.objects || []);
+    setSelection([]);
+    broadcastBoardState({mode: 'replace'});
+    broadcastActivity('snapshot-restored');
+    closeSnapshotPanel();
 }
 
 async function copyShareLink() {
@@ -773,6 +813,17 @@ export function initEvents() {
     const boardName = localStorage.getItem(`whiteboard:boardName:${app.roomId}`) || `Whiteboard / ${app.roomId.slice(0, 8)}`;
     document.querySelector('.board-title span:last-child').textContent = boardName;
     shareButton.addEventListener('click', copyShareLink);
+    snapshotClose?.addEventListener('click', closeSnapshotPanel);
+    snapshotList?.addEventListener('click', event => {
+        const button = event.target.closest('[data-snapshot-id]');
+
+        if (!button) {
+            return;
+        }
+
+        const snapshot = getAllSnapshots().find(item => item.id === button.dataset.snapshotId);
+        restoreSnapshot(snapshot);
+    });
     presence?.addEventListener('click', event => {
         const followButton = event.target.closest('[data-follow-user]');
 
@@ -810,6 +861,28 @@ export function initEvents() {
         if (imageItem) {
             loadImageFile(imageItem.getAsFile());
         }
+    });
+    window.addEventListener('dragover', event => {
+        if ([...(event.dataTransfer?.items || [])].some(item => item.type.startsWith('image/'))) {
+            event.preventDefault();
+            document.body.classList.add('drag-import');
+        }
+    });
+    window.addEventListener('dragleave', event => {
+        if (!event.relatedTarget) {
+            document.body.classList.remove('drag-import');
+        }
+    });
+    window.addEventListener('drop', event => {
+        const imageFile = [...(event.dataTransfer?.files || [])].find(file => file.type.startsWith('image/'));
+
+        if (!imageFile) {
+            return;
+        }
+
+        event.preventDefault();
+        document.body.classList.remove('drag-import');
+        loadImageFile(imageFile, getCanvasPoint(event.clientX, event.clientY));
     });
 
     linePreview.querySelector('.list').addEventListener('click', e => {
@@ -937,6 +1010,16 @@ export function initEvents() {
                 return;
             }
 
+            if (toolbarButton.id === 'exportSvg') {
+                exportBoardSvg();
+                return;
+            }
+
+            if (toolbarButton.id === 'exportPdf') {
+                exportBoardPdf();
+                return;
+            }
+
             if (toolbarButton.id === 'copyImage') {
                 copyBoardImage().catch(() => false);
                 return;
@@ -962,20 +1045,13 @@ export function initEvents() {
                     objects: JSON.parse(JSON.stringify(serializableObjects)),
                 }].slice(-10);
                 localStorage.setItem(`whiteboard:snapshots:${app.roomId}`, JSON.stringify(storedSnapshots));
+                renderSnapshotPanel();
                 broadcastActivity('snapshot-created');
                 return;
             }
 
             if (toolbarButton.id === 'restoreSnapshot') {
-                const snapshot = chooseSnapshot();
-
-                if (snapshot) {
-                    saveHistory();
-                    app.objects = snapshot.objects;
-                    setSelection([]);
-                    broadcastBoardState({mode: 'replace'});
-                    broadcastActivity('snapshot-restored');
-                }
+                openSnapshotPanel();
                 return;
             }
         }

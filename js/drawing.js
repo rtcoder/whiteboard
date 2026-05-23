@@ -509,6 +509,62 @@ function getRotationTransform(object) {
     return `rotate(${rotation} ${center.x} ${center.y})`;
 }
 
+function getLocalPoint(point, object) {
+    const rotation = object.rotation || 0;
+
+    if (!rotation) {
+        return point;
+    }
+
+    return rotatePoint(point, getObjectCenter(object), -rotation);
+}
+
+function isPointInBounds(point, bounds, padding = 12) {
+    return point.x >= bounds.x - padding &&
+        point.x <= bounds.x + bounds.width + padding &&
+        point.y >= bounds.y - padding &&
+        point.y <= bounds.y + bounds.height + padding;
+}
+
+function isPointNearSegment(point, from, to, padding = 12) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const lengthSquared = dx * dx + dy * dy;
+
+    if (!lengthSquared) {
+        return Math.hypot(point.x - from.x, point.y - from.y) <= padding;
+    }
+
+    const t = Math.max(0, Math.min(1, ((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared));
+    const projected = {
+        x: from.x + t * dx,
+        y: from.y + t * dy,
+    };
+
+    return Math.hypot(point.x - projected.x, point.y - projected.y) <= padding;
+}
+
+function isPointInsideObject(point, object) {
+    if (object.type === 'connector') {
+        const endpoints = getConnectorEndpoints(object);
+        return isPointNearSegment(point, endpoints.from, endpoints.to, Math.max(12, object.lineWidth * 2));
+    }
+
+    const bounds = getRawBounds(object);
+
+    if (!bounds) {
+        return false;
+    }
+
+    const localPoint = getLocalPoint(point, object);
+
+    if (['rectangle', 'ellipse', 'diamond', 'polygon'].includes(object.type)) {
+        return isPointInsideFillableObject(localPoint, object);
+    }
+
+    return isPointInBounds(localPoint, bounds);
+}
+
 function getConnectorEndpoints(object) {
     const fromObject = app.objects.find(item => item.id === object.fromId);
     const toObject = app.objects.find(item => item.id === object.toId);
@@ -1726,6 +1782,67 @@ export async function copyBoardImage() {
     return true;
 }
 
+function getExportSvgText() {
+    render(false);
+    const bounds = getExportBounds();
+    const clone = app.svg.cloneNode(true);
+    clone.setAttribute('xmlns', SVG_NS);
+    clone.setAttribute('width', Math.min(bounds.width, app.canvas.width - bounds.x));
+    clone.setAttribute('height', Math.min(bounds.height, app.canvas.height - bounds.y));
+    clone.setAttribute('viewBox', `${bounds.x} ${bounds.y} ${Math.min(bounds.width, app.canvas.width - bounds.x)} ${Math.min(bounds.height, app.canvas.height - bounds.y)}`);
+    clone.style.background = '#fff';
+    const svgText = new XMLSerializer().serializeToString(clone);
+    render();
+    return svgText;
+}
+
+export function exportBoardSvg() {
+    const svgText = getExportSvgText();
+    const url = URL.createObjectURL(new Blob([svgText], {type: 'image/svg+xml'}));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `whiteboard-${app.roomId || 'board'}.svg`;
+    link.click();
+    URL.revokeObjectURL(url);
+}
+
+export function exportBoardPdf() {
+    const svgText = getExportSvgText();
+    const url = URL.createObjectURL(new Blob([svgText], {type: 'image/svg+xml'}));
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+
+    if (!printWindow) {
+        URL.revokeObjectURL(url);
+        return false;
+    }
+
+    printWindow.document.write(`
+        <!doctype html>
+        <html lang="en">
+        <head>
+            <title>Whiteboard PDF</title>
+            <style>
+                html, body { margin: 0; min-height: 100%; background: #fff; }
+                img { display: block; width: 100%; height: auto; }
+                @page { margin: 12mm; }
+            </style>
+        </head>
+        <body>
+            <img src="${url}" alt="Whiteboard export">
+            <script>
+                window.onload = () => {
+                    window.print();
+                    setTimeout(() => window.close(), 500);
+                };
+            </script>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return true;
+}
+
 function moveSingleObject(object, dx, dy) {
     if (object.locked) {
         return;
@@ -1823,22 +1940,7 @@ export function resizeObjects(objects, startBounds, nextBounds) {
 
 export function findObjectAt(point) {
     for (const object of [...app.objects].reverse()) {
-        if (object.type === 'connector') {
-            continue;
-        }
-
-        const bounds = getBounds(object);
-
-        if (!bounds) {
-            continue;
-        }
-
-        if (
-            point.x >= bounds.x - 12 &&
-            point.x <= bounds.x + bounds.width + 12 &&
-            point.y >= bounds.y - 12 &&
-            point.y <= bounds.y + bounds.height + 12
-        ) {
+        if (isPointInsideObject(point, object)) {
             return object;
         }
     }

@@ -10,6 +10,8 @@ let suppressBroadcast = false;
 let currentRevision = 0;
 let lastCursorSentAt = 0;
 let lastLaserSentAt = 0;
+let localObjectCache = new Map();
+let localObjectOrder = [];
 const DEBUG_NETWORK = true;
 const DEBUG_CURSOR = false;
 const CURSOR_SEND_INTERVAL = 50;
@@ -102,6 +104,50 @@ function deserializeObject(object) {
     };
 }
 
+function getSerializedObjects() {
+    return app.objects.map(serializeObject);
+}
+
+function syncLocalObjectCache(objects) {
+    localObjectCache = new Map(objects.map(object => [object.id, JSON.stringify(object)]));
+    localObjectOrder = objects.map(object => object.id);
+}
+
+function getBoardOperation(objects) {
+    const nextCache = new Map(objects.map(object => [object.id, JSON.stringify(object)]));
+    const upsert = objects.filter(object => nextCache.get(object.id) !== localObjectCache.get(object.id));
+    const deleteIds = [...localObjectCache.keys()].filter(id => !nextCache.has(id));
+    const orderIds = objects.map(object => object.id);
+    const orderChanged = orderIds.length !== localObjectOrder.length ||
+        orderIds.some((id, index) => id !== localObjectOrder[index]);
+
+    return {
+        upsert,
+        deleteIds,
+        orderIds: orderChanged ? orderIds : undefined,
+        changed: upsert.length > 0 || deleteIds.length > 0 || orderChanged,
+    };
+}
+
+function applyBoardOperation(operation = {}) {
+    const objectsById = new Map(app.objects.map(object => [object.id, object]));
+
+    (operation.deleteIds || []).forEach(id => objectsById.delete(id));
+    (operation.upsert || []).forEach(object => {
+        objectsById.set(object.id, deserializeObject(object));
+    });
+
+    if (operation.orderIds?.length) {
+        const orderedObjects = operation.orderIds
+            .map(id => objectsById.get(id))
+            .filter(Boolean);
+        const remainingObjects = [...objectsById.values()].filter(object => !operation.orderIds.includes(object.id));
+        app.objects = [...orderedObjects, ...remainingObjects];
+    } else {
+        app.objects = [...objectsById.values()];
+    }
+}
+
 function send(message) {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
         logNetwork('skip send, socket not open', {
@@ -144,11 +190,35 @@ export function broadcastBoardState({mode = 'merge'} = {}) {
         return;
     }
 
-    const objects = app.objects.map(serializeObject);
+    const objects = getSerializedObjects();
     const revision = currentRevision;
     currentRevision += 1;
     saveLocalBoardState(objects);
     refreshActivityLog();
+
+    if (mode === 'merge') {
+        const operation = getBoardOperation(objects);
+
+        if (!operation.changed) {
+            return;
+        }
+
+        syncLocalObjectCache(objects);
+        logNetwork('broadcast board-operation requested', {
+            revision,
+            upsert: operation.upsert.length,
+            deleteIds: operation.deleteIds.length,
+            orderChanged: Boolean(operation.orderIds),
+        });
+        send({
+            type: 'board-operation',
+            revision,
+            operation,
+        });
+        return;
+    }
+
+    syncLocalObjectCache(objects);
     logNetwork('broadcast board-state requested', {
         revision,
         mode,
@@ -318,6 +388,7 @@ export function initNetwork({render, onPeersChange}) {
             app.selectedObjectId = null;
             app.selectedObjectIds = [];
             suppressBroadcast = false;
+            syncLocalObjectCache(boardState);
             renderBoard();
             refreshActivityLog();
             updatePeers();
@@ -343,12 +414,34 @@ export function initNetwork({render, onPeersChange}) {
             app.selectedObjectId = null;
             app.selectedObjectIds = [];
             suppressBroadcast = false;
+            syncLocalObjectCache(message.objects || []);
             renderBoard();
             refreshActivityLog();
             logNetwork('applied remote board-state', {
                 revision: currentRevision,
                 objects: app.objects.length,
                 bitmapObjects: app.objects.filter(object => object.type === 'bitmap').length,
+            });
+            return;
+        }
+
+        if (message.type === 'board-operation') {
+            currentRevision = Math.max(currentRevision, message.revision || 0);
+            suppressBroadcast = true;
+            applyBoardOperation(message.operation);
+            app.selectedObjectId = null;
+            app.selectedObjectIds = [];
+            suppressBroadcast = false;
+            const objects = getSerializedObjects();
+            saveLocalBoardState(objects);
+            syncLocalObjectCache(objects);
+            renderBoard();
+            refreshActivityLog();
+            logNetwork('applied remote board-operation', {
+                revision: currentRevision,
+                upsert: message.operation?.upsert?.length || 0,
+                deleteIds: message.operation?.deleteIds?.length || 0,
+                objects: app.objects.length,
             });
             return;
         }
