@@ -323,7 +323,19 @@ function drawCommentObject(object) {
     app.ctx.restore();
 }
 
-function getBounds(object) {
+function getRawBounds(object) {
+    if (object.type === 'connector') {
+        const endpoints = getConnectorEndpoints(object);
+        const x = Math.min(endpoints.from.x, endpoints.to.x);
+        const y = Math.min(endpoints.from.y, endpoints.to.y);
+        return {
+            x,
+            y,
+            width: Math.abs(endpoints.to.x - endpoints.from.x),
+            height: Math.abs(endpoints.to.y - endpoints.from.y),
+        };
+    }
+
     if (object.type === 'path') {
         const xs = object.points.map(point => point.x);
         const ys = object.points.map(point => point.y);
@@ -375,7 +387,59 @@ function getBounds(object) {
         };
     }
 
+    if (object.type === 'image') {
+        return {
+            x: object.x,
+            y: object.y,
+            width: object.width,
+            height: object.height,
+        };
+    }
+
     return null;
+}
+
+function rotatePoint(point, center, angle) {
+    const radians = angle * Math.PI / 180;
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+    const dx = point.x - center.x;
+    const dy = point.y - center.y;
+
+    return {
+        x: center.x + dx * cos - dy * sin,
+        y: center.y + dx * sin + dy * cos,
+    };
+}
+
+function getBounds(object) {
+    const bounds = getRawBounds(object);
+
+    if (!bounds || !object.rotation || object.type === 'connector') {
+        return bounds;
+    }
+
+    const center = {
+        x: bounds.x + bounds.width / 2,
+        y: bounds.y + bounds.height / 2,
+    };
+    const points = [
+        rotatePoint({x: bounds.x, y: bounds.y}, center, object.rotation),
+        rotatePoint({x: bounds.x + bounds.width, y: bounds.y}, center, object.rotation),
+        rotatePoint({x: bounds.x + bounds.width, y: bounds.y + bounds.height}, center, object.rotation),
+        rotatePoint({x: bounds.x, y: bounds.y + bounds.height}, center, object.rotation),
+    ];
+    const minX = Math.min(...points.map(point => point.x));
+    const minY = Math.min(...points.map(point => point.y));
+    const maxX = Math.max(...points.map(point => point.x));
+    const maxY = Math.max(...points.map(point => point.y));
+
+    return {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY,
+    };
 }
 
 export function getObjectBounds(object) {
@@ -425,6 +489,57 @@ function boundsOverlap(a, b, padding = 0) {
         a.x + a.width + padding >= b.x &&
         a.y - padding <= b.y + b.height &&
         a.y + a.height + padding >= b.y;
+}
+
+function getObjectCenter(object) {
+    const bounds = getRawBounds(object);
+    return bounds
+        ? {x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2}
+        : {x: 0, y: 0};
+}
+
+function getRotationTransform(object) {
+    const rotation = object.rotation || 0;
+
+    if (!rotation) {
+        return null;
+    }
+
+    const center = getObjectCenter(object);
+    return `rotate(${rotation} ${center.x} ${center.y})`;
+}
+
+function getConnectorEndpoints(object) {
+    const fromObject = app.objects.find(item => item.id === object.fromId);
+    const toObject = app.objects.find(item => item.id === object.toId);
+    const fallbackFrom = {x: object.x, y: object.y};
+    const fallbackTo = {x: object.x2, y: object.y2};
+
+    return {
+        from: fromObject && toObject ? getConnectionPoint(fromObject, toObject) : fallbackFrom,
+        to: fromObject && toObject ? getConnectionPoint(toObject, fromObject) : fallbackTo,
+    };
+}
+
+function getConnectionPoint(sourceObject, targetObject) {
+    const bounds = getRawBounds(sourceObject);
+    const source = getObjectCenter(sourceObject);
+    const target = getObjectCenter(targetObject);
+
+    if (!bounds) {
+        return source;
+    }
+
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    const halfWidth = Math.max(1, bounds.width / 2);
+    const halfHeight = Math.max(1, bounds.height / 2);
+    const scale = 1 / Math.max(Math.abs(dx) / halfWidth, Math.abs(dy) / halfHeight, 1);
+
+    return {
+        x: source.x + dx * scale,
+        y: source.y + dy * scale,
+    };
 }
 
 function rgbaToCss(color) {
@@ -513,7 +628,7 @@ function isPointInsideFillableObject(point, object) {
 }
 
 function fillObjectAt(point, fillColor) {
-    const object = [...app.objects].reverse().find(item => isPointInsideFillableObject(point, item));
+    const object = [...app.objects].reverse().find(item => !item.locked && isPointInsideFillableObject(point, item));
 
     if (!object) {
         return false;
@@ -561,6 +676,31 @@ function drawSelectionBounds(bounds) {
     app.ctx.restore();
 }
 
+function createLockedBadge(bounds) {
+    const group = createSvgElement('g');
+    const x = bounds.x + bounds.width + 12;
+    const y = bounds.y + 12;
+
+    group.appendChild(createSvgElement('circle', {
+        cx: x,
+        cy: y,
+        r: 11,
+        fill: '#0f172a',
+        opacity: 0.88,
+        'vector-effect': 'non-scaling-stroke',
+    }));
+    group.appendChild(createSvgElement('path', {
+        d: `M ${x - 4} ${y - 1} V ${y - 4} C ${x - 4} ${y - 7} ${x + 4} ${y - 7} ${x + 4} ${y - 4} V ${y - 1} M ${x - 5} ${y - 1} H ${x + 5} V ${y + 6} H ${x - 5} Z`,
+        fill: 'none',
+        stroke: '#ffffff',
+        'stroke-width': 1.7,
+        'stroke-linejoin': 'round',
+        'stroke-linecap': 'round',
+        'vector-effect': 'non-scaling-stroke',
+    }));
+    return group;
+}
+
 function createResizeHandle(x, y, handle) {
     const size = Math.max(12, 12 / app.zoom.scale);
 
@@ -576,6 +716,23 @@ function createResizeHandle(x, y, handle) {
         'stroke-width': 2,
         'vector-effect': 'non-scaling-stroke',
         'data-resize-handle': handle,
+    });
+}
+
+function createRotateHandle(bounds) {
+    const size = Math.max(12, 12 / app.zoom.scale);
+    const y = bounds.y - Math.max(34, 34 / app.zoom.scale);
+    const x = bounds.x + bounds.width / 2;
+
+    return createSvgElement('circle', {
+        cx: x,
+        cy: y,
+        r: size / 2,
+        fill: '#ffffff',
+        stroke: '#2563eb',
+        'stroke-width': 2,
+        'vector-effect': 'non-scaling-stroke',
+        'data-rotate-handle': 'true',
     });
 }
 
@@ -829,6 +986,31 @@ function createSvgBitmap(object) {
     });
 }
 
+function createSvgImageObject(object) {
+    return createSvgElement('image', {
+        x: object.x,
+        y: object.y,
+        width: object.width,
+        height: object.height,
+        href: object.src,
+        preserveAspectRatio: 'xMidYMid meet',
+    });
+}
+
+function createSvgConnector(object) {
+    const endpoints = getConnectorEndpoints(object);
+    const midX = (endpoints.from.x + endpoints.to.x) / 2;
+
+    return createSvgElement('path', {
+        d: `M ${endpoints.from.x} ${endpoints.from.y} C ${midX} ${endpoints.from.y}, ${midX} ${endpoints.to.y}, ${endpoints.to.x} ${endpoints.to.y}`,
+        fill: 'none',
+        stroke: object.color,
+        'stroke-width': object.lineWidth || 3,
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+    });
+}
+
 function createSvgSelection(object) {
     const bounds = getBounds(object);
 
@@ -869,6 +1051,46 @@ function createSvgSelectionBounds(bounds) {
     getResizeHandlePoints(bounds).forEach(point => {
         group.appendChild(createResizeHandle(point.x, point.y, point.handle));
     });
+    group.appendChild(createRotateHandle(bounds));
+    return group;
+}
+
+function createSvgPresenceBadges() {
+    const group = createSvgElement('g');
+
+    app.collaborators.forEach(user => {
+        const selectedObjects = app.objects.filter(object => user.selectedObjectIds?.includes(object.id));
+        const bounds = getObjectsBounds(selectedObjects);
+
+        if (!bounds) {
+            return;
+        }
+
+        const x = bounds.x + bounds.width + 12;
+        const y = bounds.y - 10;
+        group.appendChild(createSvgElement('circle', {
+            cx: x,
+            cy: y,
+            r: 13,
+            fill: user.color,
+            stroke: '#ffffff',
+            'stroke-width': 3,
+            'vector-effect': 'non-scaling-stroke',
+        }));
+        const label = createSvgElement('text', {
+            x,
+            y: y + 1,
+            fill: '#ffffff',
+            'font-size': 10,
+            'font-family': 'Inter, system-ui, sans-serif',
+            'font-weight': 850,
+            'text-anchor': 'middle',
+            'dominant-baseline': 'middle',
+        });
+        label.textContent = user.initials;
+        group.appendChild(label);
+    });
+
     return group;
 }
 
@@ -877,6 +1099,10 @@ function appendSvgObject(object, parent = app.svg) {
 
     if (object.type === 'bitmap') {
         element = createSvgBitmap(object);
+    } else if (object.type === 'image') {
+        element = createSvgImageObject(object);
+    } else if (object.type === 'connector') {
+        element = createSvgConnector(object);
     } else if (object.type === 'path') {
         element = createSvgPath(object);
     } else if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'].includes(object.type)) {
@@ -896,6 +1122,7 @@ function appendSvgObject(object, parent = app.svg) {
     setSvgAttrs(element, {
         'data-object-id': object.id,
         'data-object-type': object.type,
+        transform: getRotationTransform(object),
     });
     parent.appendChild(element);
 }
@@ -939,6 +1166,14 @@ function renderSvg(showSelection = true) {
     if (selection) {
         app.svg.appendChild(selection);
     }
+    app.objects.forEach(object => {
+        const bounds = object.locked ? getBounds(object) : null;
+
+        if (bounds) {
+            app.svg.appendChild(createLockedBadge(bounds));
+        }
+    });
+    app.svg.appendChild(createSvgPresenceBadges());
 
     if (app.lassoBounds) {
         const lasso = createSvgElement('rect', {
@@ -974,6 +1209,8 @@ export function render(showSelection = true) {
 
         if (object.type === 'bitmap') {
             app.ctx.putImageData(object.imageData, object.x, object.y);
+        } else if (object.type === 'image' || object.type === 'connector') {
+            // These are rendered in SVG; canvas export keeps the current raster-safe layer.
         } else if (object.type === 'path') {
             drawPath(object);
         } else if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'].includes(object.type)) {
@@ -1009,6 +1246,8 @@ export function render(showSelection = true) {
     }
 
     renderSvg(showSelection);
+    window.whiteboardUpdateMinimap?.();
+    window.whiteboardUpdateRemoteLasers?.();
 }
 
 export function createPath(point, color, lineWidth, opacity = 1) {
@@ -1068,10 +1307,47 @@ export function createComment(point, text) {
     };
 }
 
+export function createImageObject(point, src, width, height) {
+    const maxWidth = 520;
+    const scale = width > maxWidth ? maxWidth / width : 1;
+
+    return {
+        id: createId('image'),
+        type: 'image',
+        x: point.x,
+        y: point.y,
+        width: Math.max(80, Math.round(width * scale)),
+        height: Math.max(60, Math.round(height * scale)),
+        src,
+    };
+}
+
+export function createConnector(fromObject, toObject, color = app.fillColor) {
+    const from = getObjectCenter(fromObject);
+    const to = getObjectCenter(toObject);
+
+    return {
+        id: createId('connector'),
+        type: 'connector',
+        fromId: fromObject.id,
+        toId: toObject.id,
+        x: from.x,
+        y: from.y,
+        x2: to.x,
+        y2: to.y,
+        color,
+        lineWidth: Math.max(3, Math.round(app.lineWidth * 0.45)),
+    };
+}
+
 export function deleteObjectById(id) {
     const object = app.objects.find(item => item.id === id);
 
     if (!object) {
+        return null;
+    }
+
+    if (object.locked) {
         return null;
     }
 
@@ -1089,6 +1365,29 @@ export function deleteObjectById(id) {
     broadcastBoardState({mode: 'replace'});
 
     return object;
+}
+
+export function deleteObjectsByIds(ids) {
+    const idSet = new Set(ids);
+    const deletedObjects = app.objects.filter(object => idSet.has(object.id) && !object.locked);
+
+    if (!deletedObjects.length) {
+        return [];
+    }
+
+    saveHistory();
+    app.objects = app.objects.filter(item => {
+        if (idSet.has(item.id) && !item.locked) {
+            return false;
+        }
+
+        return !item.linkedObjectIds?.some(id => idSet.has(id));
+    });
+    app.selectedObjectId = null;
+    app.selectedObjectIds = [];
+    render();
+    broadcastBoardState({mode: 'replace'});
+    return deletedObjects;
 }
 
 export function createText(point, text) {
@@ -1183,7 +1482,7 @@ export function createSticky(point, text) {
 export function duplicateObject(id) {
     const object = app.objects.find(item => item.id === id);
 
-    if (!object) {
+    if (!object || object.locked) {
         return null;
     }
 
@@ -1198,6 +1497,28 @@ export function duplicateObject(id) {
     broadcastBoardState();
 
     return duplicate;
+}
+
+export function duplicateObjects(objects) {
+    const duplicableObjects = objects.filter(object => !object.locked);
+
+    if (!duplicableObjects.length) {
+        return [];
+    }
+
+    saveHistory();
+    const duplicatedObjects = duplicableObjects.map(object => {
+        const duplicate = cloneObject(object);
+        duplicate.id = createId(object.type);
+        moveSingleObject(duplicate, 32, 32);
+        return duplicate;
+    });
+    app.objects.push(...duplicatedObjects);
+    app.selectedObjectIds = duplicatedObjects.map(object => object.id);
+    app.selectedObjectId = app.selectedObjectIds[0] || null;
+    render();
+    broadcastBoardState();
+    return duplicatedObjects;
 }
 
 export function moveObjectLayer(id, direction) {
@@ -1220,6 +1541,59 @@ export function moveObjectLayer(id, direction) {
     broadcastBoardState();
 
     return object;
+}
+
+export function setObjectsLocked(objects, locked) {
+    if (!objects.length) {
+        return false;
+    }
+
+    saveHistory();
+    objects.forEach(object => {
+        object.locked = locked;
+    });
+    render();
+    broadcastBoardState();
+    return true;
+}
+
+export function groupObjects(objects) {
+    if (objects.length < 2) {
+        return null;
+    }
+
+    const groupId = createId('group');
+    saveHistory();
+    objects.forEach(object => {
+        object.groupId = groupId;
+    });
+    render();
+    broadcastBoardState();
+    return groupId;
+}
+
+export function ungroupObjects(objects) {
+    const groupIds = new Set(objects.map(object => object.groupId).filter(Boolean));
+
+    if (!groupIds.size) {
+        return false;
+    }
+
+    saveHistory();
+    app.objects.forEach(object => {
+        if (groupIds.has(object.groupId)) {
+            object.groupId = null;
+        }
+    });
+    render();
+    broadcastBoardState();
+    return true;
+}
+
+export function rotateObjects(objects, startRotations, angleDelta) {
+    objects.forEach(object => {
+        object.rotation = Math.round(((startRotations.get(object.id) || 0) + angleDelta) * 10) / 10;
+    });
 }
 
 export function normalizeFrame(object) {
@@ -1259,7 +1633,23 @@ function getExportBounds() {
     };
 }
 
-function createExportCanvas() {
+function imageFromSvg(svgText) {
+    return new Promise((resolve, reject) => {
+        const image = new Image();
+        const url = URL.createObjectURL(new Blob([svgText], {type: 'image/svg+xml'}));
+        image.addEventListener('load', () => {
+            URL.revokeObjectURL(url);
+            resolve(image);
+        });
+        image.addEventListener('error', () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Unable to render SVG export'));
+        });
+        image.src = url;
+    });
+}
+
+async function createExportCanvas() {
     render(false);
     const bounds = getExportBounds();
     const canvas = document.createElement('canvas');
@@ -1268,17 +1658,35 @@ function createExportCanvas() {
     const context = canvas.getContext('2d');
     context.fillStyle = 'white';
     context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(
-        app.canvas,
-        bounds.x,
-        bounds.y,
-        canvas.width,
-        canvas.height,
-        0,
-        0,
-        canvas.width,
-        canvas.height,
-    );
+
+    try {
+        const svgText = new XMLSerializer().serializeToString(app.svg);
+        const image = await imageFromSvg(svgText);
+        context.drawImage(
+            image,
+            bounds.x,
+            bounds.y,
+            canvas.width,
+            canvas.height,
+            0,
+            0,
+            canvas.width,
+            canvas.height,
+        );
+    } catch {
+        context.drawImage(
+            app.canvas,
+            bounds.x,
+            bounds.y,
+            canvas.width,
+            canvas.height,
+            0,
+            0,
+            canvas.width,
+            canvas.height,
+        );
+    }
+
     render();
     return canvas;
 }
@@ -1290,7 +1698,7 @@ function canvasToBlob(canvas) {
 }
 
 export async function exportBoardPng() {
-    const canvas = createExportCanvas();
+    const canvas = await createExportCanvas();
     const url = canvas.toDataURL('image/png');
     const link = document.createElement('a');
     link.href = url;
@@ -1303,7 +1711,7 @@ export async function copyBoardImage() {
         return false;
     }
 
-    const canvas = createExportCanvas();
+    const canvas = await createExportCanvas();
     const blob = await canvasToBlob(canvas);
 
     if (!blob) {
@@ -1319,6 +1727,10 @@ export async function copyBoardImage() {
 }
 
 function moveSingleObject(object, dx, dy) {
+    if (object.locked) {
+        return;
+    }
+
     if (object.points) {
         object.points.forEach(point => {
             point.x += dx;
@@ -1378,6 +1790,10 @@ export function resizeObjects(objects, startBounds, nextBounds) {
     const scaleY = startBounds.height ? height / startBounds.height : 1;
 
     objects.forEach(({object, bounds, original, points}) => {
+        if (object.locked) {
+            return;
+        }
+
         const mapX = value => nextBounds.x + (value - startBounds.x) * scaleX;
         const mapY = value => nextBounds.y + (value - startBounds.y) * scaleY;
 
@@ -1407,6 +1823,10 @@ export function resizeObjects(objects, startBounds, nextBounds) {
 
 export function findObjectAt(point) {
     for (const object of [...app.objects].reverse()) {
+        if (object.type === 'connector') {
+            continue;
+        }
+
         const bounds = getBounds(object);
 
         if (!bounds) {

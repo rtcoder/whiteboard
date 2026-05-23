@@ -1,9 +1,12 @@
 import {moveCursor} from './cursor.js';
 import {
     clear,
+    cloneObjects,
     createCallout,
     createComment,
     createFrame,
+    createConnector,
+    createImageObject,
     createLabel,
     createList,
     createPath,
@@ -11,7 +14,9 @@ import {
     createSticky,
     createText,
     deleteObjectById,
+    deleteObjectsByIds,
     duplicateObject,
+    duplicateObjects,
     exportBoardPng,
     draw,
     findObjectAt,
@@ -21,6 +26,7 @@ import {
     getObjectsBounds,
     getSelectedObjects,
     getSelectedObjectsBounds,
+    groupObjects,
     moveObjects,
     moveObjectLayer,
     normalizeFrame,
@@ -28,12 +34,15 @@ import {
     redo,
     render,
     resizeObjects,
+    rotateObjects,
     saveHistory,
+    setObjectsLocked,
+    ungroupObjects,
     undo,
 } from './drawing.js';
 import {getObjectName} from './activity.js';
 import {app, setMousePosition} from './main.js';
-import {broadcastActivity, broadcastBoardState, sendCursorPosition} from './network.js';
+import {broadcastActivity, broadcastBoardState, sendCursorPosition, sendLaserPosition, sendSelectionState} from './network.js';
 import {activateMovingToolbar, deactivateMovingToolbar, hideToolbar, moveToolbar, showToolbar} from './toolbar.js';
 import {clampZoomOffset, getCanvasPoint, getCanvasTransform, hexToRgba} from './utils.js';
 
@@ -46,6 +55,11 @@ const fitBoardButton = document.querySelector('.fit-board');
 const zoomSelectionButton = document.querySelector('.zoom-selection');
 const toolTooltip = document.querySelector('.tool-tooltip');
 const toolMenuTriggers = document.querySelectorAll('.tool-menu-trigger');
+const imageImportInput = document.getElementById('imageImport');
+const minimap = document.querySelector('.minimap');
+const minimapSvg = document.querySelector('.minimap svg');
+const laserLayer = document.querySelector('.laser-layer');
+const selectionActionIds = ['duplicate', 'group', 'ungroup', 'lock', 'unlock', 'bringForward', 'sendBackward'];
 
 function addListener(element, events, listener) {
     events.forEach(ev => {
@@ -201,6 +215,8 @@ function applyCanvasTransform() {
     app.canvas.style.transform = getCanvasTransform();
     app.svg.style.transform = getCanvasTransform();
     updateRemoteCursors();
+    updateRemoteLasers();
+    updateMinimap();
 }
 
 function setZoomValue(scale) {
@@ -228,8 +244,44 @@ function fitBoundsToScreen(bounds) {
 }
 
 function setSelection(objects) {
-    app.selectedObjectIds = objects.map(object => object.id);
+    const groupIds = new Set(objects.map(object => object.groupId).filter(Boolean));
+    const expandedObjects = groupIds.size
+        ? app.objects.filter(object => groupIds.has(object.groupId))
+        : objects;
+    app.selectedObjectIds = expandedObjects.map(object => object.id);
     app.selectedObjectId = app.selectedObjectIds[0] || null;
+    sendSelectionState(app.selectedObjectIds);
+    updateToolbarState();
+    render();
+}
+
+function updateToolbarState() {
+    const selectedObjects = getSelectedObjects();
+    const hasSelection = selectedObjects.length > 0;
+    const hasMultiSelection = selectedObjects.length > 1;
+    const hasGroupSelection = selectedObjects.some(object => object.groupId);
+    const hasUnlockedSelection = selectedObjects.some(object => !object.locked);
+    const hasLockedSelection = selectedObjects.some(object => object.locked);
+
+    selectionActionIds.forEach(id => {
+        const button = document.getElementById(id);
+
+        if (!button) {
+            return;
+        }
+
+        if (id === 'group') {
+            button.disabled = !hasMultiSelection;
+        } else if (id === 'ungroup') {
+            button.disabled = !hasGroupSelection;
+        } else if (id === 'lock') {
+            button.disabled = !hasUnlockedSelection;
+        } else if (id === 'unlock') {
+            button.disabled = !hasLockedSelection;
+        } else {
+            button.disabled = !hasSelection;
+        }
+    });
 }
 
 function getNormalizedBounds(start, end) {
@@ -263,7 +315,7 @@ function getResizeHandleAt(point) {
 }
 
 function beginResize(handle) {
-    const selectedObjects = getSelectedObjects();
+    const selectedObjects = getSelectedObjects().filter(object => !object.locked);
 
     if (!handle || !selectedObjects.length) {
         return false;
@@ -292,6 +344,60 @@ function beginResize(handle) {
     }));
     saveHistory();
     return true;
+}
+
+function beginRotate(point) {
+    const selectedObjects = getSelectedObjects().filter(object => !object.locked);
+    const bounds = getSelectedObjectsBounds();
+
+    if (!selectedObjects.length || !bounds) {
+        return false;
+    }
+
+    const center = {x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2};
+    app.drag.rotateStart = {
+        center,
+        angle: Math.atan2(point.y - center.y, point.x - center.x) * 180 / Math.PI,
+        rotations: new Map(selectedObjects.map(object => [object.id, object.rotation || 0])),
+    };
+    app.drag.rotateObjects = selectedObjects;
+    saveHistory();
+    return true;
+}
+
+function getRotateHandleAt(point) {
+    const bounds = getSelectedObjectsBounds();
+
+    if (!bounds) {
+        return false;
+    }
+
+    const handle = {
+        x: bounds.x + bounds.width / 2,
+        y: bounds.y - Math.max(34, 34 / app.zoom.scale),
+    };
+    const size = Math.max(14, 16 / app.zoom.scale);
+    return Math.abs(point.x - handle.x) <= size && Math.abs(point.y - handle.y) <= size;
+}
+
+function updateRotate(point, event) {
+    if (!app.drag.rotateStart || !app.drag.rotateObjects) {
+        return;
+    }
+
+    const angle = Math.atan2(
+        point.y - app.drag.rotateStart.center.y,
+        point.x - app.drag.rotateStart.center.x,
+    ) * 180 / Math.PI;
+    let angleDelta = angle - app.drag.rotateStart.angle;
+
+    if (event?.shiftKey) {
+        angleDelta = Math.round(angleDelta / 15) * 15;
+    }
+
+    rotateObjects(app.drag.rotateObjects, app.drag.rotateStart.rotations, angleDelta);
+    app.drag.moved = true;
+    render();
 }
 
 function getResizedBounds(startBounds, handle, point) {
@@ -470,7 +576,7 @@ function finishLasso() {
         return;
     }
 
-    const selectedObjects = getObjectsInBounds(app.lassoBounds);
+    const selectedObjects = getObjectsInBounds(app.lassoBounds).filter(object => object.type !== 'connector');
     setSelection(selectedObjects);
     app.lassoBounds = null;
     render();
@@ -503,16 +609,140 @@ function updateRemoteCursors() {
 
         cursor.style.left = `${(user.x + app.zoom.offsetX) * app.zoom.scale}px`;
         cursor.style.top = `${(user.y + app.zoom.offsetY) * app.zoom.scale}px`;
+
+        if (app.followUserId === user.id) {
+            app.zoom.offsetX = window.innerWidth / 2 / app.zoom.scale - user.x;
+            app.zoom.offsetY = window.innerHeight / 2 / app.zoom.scale - user.y;
+            clampZoomOffset();
+            app.canvas.style.transform = getCanvasTransform();
+            app.svg.style.transform = getCanvasTransform();
+        }
     });
 
     if (presence) {
         presence.innerHTML = `
             <span class="avatar active" style="--avatar-color: ${app.localUser.color}" title="${app.localUser.name}">${app.localUser.initials}</span>
             ${[...app.collaborators.values()].map(user => (
-                `<span class="avatar" style="--avatar-color: ${user.color}" title="${user.name}">${user.initials}</span>`
+                `<button class="avatar${app.followUserId === user.id ? ' following' : ''}" type="button" data-follow-user="${user.id}" style="--avatar-color: ${user.color}" title="Follow ${user.name}">${user.initials}</button>`
             )).join('')}
         `;
     }
+}
+
+function updateRemoteLasers() {
+    if (!laserLayer) {
+        return;
+    }
+
+    laserLayer.replaceChildren();
+    app.collaborators.forEach(user => {
+        if (!user.laser) {
+            return;
+        }
+
+        if (user.laser.expiresAt && user.laser.expiresAt < Date.now()) {
+            user.laser = null;
+            return;
+        }
+
+        const dot = document.createElement('div');
+        dot.className = 'laser-dot';
+        dot.style.setProperty('--laser-color', user.color);
+        dot.style.left = `${(user.laser.x + app.zoom.offsetX) * app.zoom.scale}px`;
+        dot.style.top = `${(user.laser.y + app.zoom.offsetY) * app.zoom.scale}px`;
+        dot.innerHTML = `<span>${user.name}</span>`;
+        laserLayer.appendChild(dot);
+    });
+}
+
+function updateMinimap() {
+    if (!minimapSvg) {
+        return;
+    }
+
+    const scaleX = 240 / app.canvas.width;
+    const scaleY = 160 / app.canvas.height;
+    const objectRects = app.objects
+        .map(object => getObjectBounds(object))
+        .filter(Boolean)
+        .map(bounds => `<rect class="mini-object" x="${bounds.x * scaleX}" y="${bounds.y * scaleY}" width="${Math.max(1, bounds.width * scaleX)}" height="${Math.max(1, bounds.height * scaleY)}"></rect>`)
+        .join('');
+    const viewport = {
+        x: -app.zoom.offsetX * scaleX,
+        y: -app.zoom.offsetY * scaleY,
+        width: window.innerWidth / app.zoom.scale * scaleX,
+        height: window.innerHeight / app.zoom.scale * scaleY,
+    };
+    minimapSvg.innerHTML = `${objectRects}<rect class="mini-viewport" x="${viewport.x}" y="${viewport.y}" width="${viewport.width}" height="${viewport.height}"></rect>`;
+}
+
+function resizeImageForBoard(image, sourceType = 'image/png') {
+    const maxDimension = 1600;
+    const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const mime = sourceType === 'image/png' || sourceType === 'image/webp' ? sourceType : 'image/jpeg';
+    const src = canvas.toDataURL(mime, mime === 'image/jpeg' ? 0.86 : undefined);
+
+    return {
+        src,
+        width: canvas.width,
+        height: canvas.height,
+    };
+}
+
+function loadImageFile(file, point = getCanvasPoint(window.innerWidth / 2, window.innerHeight / 2)) {
+    if (!file?.type?.startsWith('image/')) {
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.addEventListener('load', () => {
+        const image = new Image();
+        image.addEventListener('load', () => {
+            const resizedImage = resizeImageForBoard(image, file.type);
+            const object = createImageObject(point, resizedImage.src, resizedImage.width, resizedImage.height);
+            saveHistory();
+            app.objects.push(object);
+            setSelection([object]);
+            broadcastBoardState();
+            broadcastActivity('image-imported', {
+                objectId: object.id,
+                objectName: getObjectName(object),
+            });
+        });
+        image.src = reader.result;
+    });
+    reader.readAsDataURL(file);
+}
+
+function getStoredSnapshots() {
+    try {
+        return JSON.parse(localStorage.getItem(`whiteboard:snapshots:${app.roomId}`) || '[]');
+    } catch {
+        return [];
+    }
+}
+
+function chooseSnapshot() {
+    const snapshots = [...app.snapshots, ...getStoredSnapshots()]
+        .filter((snapshot, index, all) => all.findIndex(item => item.id === snapshot.id) === index)
+        .slice(-10);
+
+    if (!snapshots.length) {
+        return null;
+    }
+
+    const options = snapshots
+        .map((snapshot, index) => `${index + 1}. ${new Date(snapshot.timestamp).toLocaleString()}`)
+        .join('\n');
+    const answer = window.prompt(`Restore snapshot:\n${options}`, String(snapshots.length));
+    const index = Number.parseInt(answer, 10) - 1;
+
+    return snapshots[index] || null;
 }
 
 async function copyShareLink() {
@@ -536,9 +766,31 @@ export function initEvents() {
     initTooltips();
     initToolMenuTriggers();
     window.updateRemoteCursors = updateRemoteCursors;
+    window.whiteboardUpdateMinimap = updateMinimap;
+    window.whiteboardUpdateRemoteLasers = updateRemoteLasers;
+    updateToolbarState();
+    window.setInterval(updateRemoteLasers, 500);
     const boardName = localStorage.getItem(`whiteboard:boardName:${app.roomId}`) || `Whiteboard / ${app.roomId.slice(0, 8)}`;
     document.querySelector('.board-title span:last-child').textContent = boardName;
     shareButton.addEventListener('click', copyShareLink);
+    presence?.addEventListener('click', event => {
+        const followButton = event.target.closest('[data-follow-user]');
+
+        if (!followButton) {
+            return;
+        }
+
+        app.followUserId = app.followUserId === followButton.dataset.followUser ? null : followButton.dataset.followUser;
+        updateRemoteCursors();
+    });
+    minimap?.addEventListener('click', event => {
+        const rect = minimap.getBoundingClientRect();
+        const x = (event.clientX - rect.left) / rect.width * app.canvas.width;
+        const y = (event.clientY - rect.top) / rect.height * app.canvas.height;
+        app.zoom.offsetX = window.innerWidth / 2 / app.zoom.scale - x;
+        app.zoom.offsetY = window.innerHeight / 2 / app.zoom.scale - y;
+        applyCanvasTransform();
+    });
     fitBoardButton.addEventListener('click', () => {
         fitBoundsToScreen(getObjectsBounds() || {x: 0, y: 0, width: app.canvas.width, height: app.canvas.height});
     });
@@ -547,6 +799,17 @@ export function initEvents() {
     });
     fillColorInput.addEventListener('input', () => {
         app.fillColor = fillColorInput.value;
+    });
+    imageImportInput?.addEventListener('change', event => {
+        loadImageFile(event.target.files?.[0]);
+        event.target.value = '';
+    });
+    window.addEventListener('paste', event => {
+        const imageItem = [...(event.clipboardData?.items || [])].find(item => item.type.startsWith('image/'));
+
+        if (imageItem) {
+            loadImageFile(imageItem.getAsFile());
+        }
     });
 
     linePreview.querySelector('.list').addEventListener('click', e => {
@@ -575,7 +838,14 @@ export function initEvents() {
             }
 
             if (toolbarButton.id === 'clear') {
+                const lockedObjects = app.objects.filter(object => object.locked);
+
                 if (clear()) {
+                    if (lockedObjects.length) {
+                        app.objects = lockedObjects;
+                        broadcastBoardState({mode: 'replace'});
+                        render();
+                    }
                     broadcastActivity('board-cleared');
                 }
                 return;
@@ -600,12 +870,49 @@ export function initEvents() {
             }
 
             if (toolbarButton.id === 'duplicate') {
-                const duplicate = duplicateObject(app.selectedObjectId);
+                const selectedObjects = getSelectedObjects();
+                const duplicates = selectedObjects.length > 1 ? duplicateObjects(selectedObjects) : [];
+                const duplicate = duplicates[0] || duplicateObject(app.selectedObjectId);
 
-                if (duplicate) {
+                if (duplicate || duplicates.length) {
                     broadcastActivity('object-duplicated', {
-                        objectId: duplicate.id,
-                        objectName: getObjectName(duplicate),
+                        objectId: duplicates.length === 1 ? duplicates[0].id : duplicate?.id,
+                        objectName: duplicates.length > 1 ? `${duplicates.length} objects` : getObjectName(duplicate || duplicates[0]),
+                    });
+                }
+                return;
+            }
+
+            if (toolbarButton.id === 'group') {
+                const selectedObjects = getSelectedObjects();
+                const groupId = groupObjects(selectedObjects);
+
+                if (groupId) {
+                    broadcastActivity('objects-grouped', {
+                        objectName: `${selectedObjects.length} objects`,
+                    });
+                }
+                return;
+            }
+
+            if (toolbarButton.id === 'ungroup') {
+                const selectedObjects = getSelectedObjects();
+
+                if (ungroupObjects(selectedObjects)) {
+                    broadcastActivity('objects-ungrouped', {
+                        objectName: `${selectedObjects.length} objects`,
+                    });
+                }
+                return;
+            }
+
+            if (toolbarButton.id === 'lock' || toolbarButton.id === 'unlock') {
+                const selectedObjects = getSelectedObjects();
+                const locked = toolbarButton.id === 'lock';
+
+                if (setObjectsLocked(selectedObjects, locked)) {
+                    broadcastActivity(locked ? 'objects-locked' : 'objects-unlocked', {
+                        objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
                     });
                 }
                 return;
@@ -632,6 +939,43 @@ export function initEvents() {
 
             if (toolbarButton.id === 'copyImage') {
                 copyBoardImage().catch(() => false);
+                return;
+            }
+
+            if (toolbarButton.id === 'importImage') {
+                imageImportInput?.click();
+                return;
+            }
+
+            if (toolbarButton.id === 'snapshot') {
+                const serializableObjects = app.objects.filter(object => object.type !== 'bitmap');
+                const snapshot = {
+                    id: crypto.randomUUID(),
+                    timestamp: new Date().toISOString(),
+                    objects: cloneObjects(app.objects),
+                };
+                app.snapshots.push(snapshot);
+                app.snapshots = app.snapshots.slice(-10);
+                const storedSnapshots = [...getStoredSnapshots(), {
+                    id: snapshot.id,
+                    timestamp: snapshot.timestamp,
+                    objects: JSON.parse(JSON.stringify(serializableObjects)),
+                }].slice(-10);
+                localStorage.setItem(`whiteboard:snapshots:${app.roomId}`, JSON.stringify(storedSnapshots));
+                broadcastActivity('snapshot-created');
+                return;
+            }
+
+            if (toolbarButton.id === 'restoreSnapshot') {
+                const snapshot = chooseSnapshot();
+
+                if (snapshot) {
+                    saveHistory();
+                    app.objects = snapshot.objects;
+                    setSelection([]);
+                    broadcastBoardState({mode: 'replace'});
+                    broadcastActivity('snapshot-restored');
+                }
                 return;
             }
         }
@@ -693,6 +1037,11 @@ export function initEvents() {
         }
 
         if (app.currentTool === 'select') {
+            if (getRotateHandleAt(point) && beginRotate(point)) {
+                app.drag.last = point;
+                return;
+            }
+
             const resizeHandle = getResizeHandleAt(point);
 
             if (beginResize(resizeHandle)) {
@@ -718,7 +1067,7 @@ export function initEvents() {
         if (app.currentTool === 'object-eraser') {
             const object = findObjectAt(point);
 
-            if (object) {
+            if (object && !object.locked) {
                 const deletedObject = deleteObjectById(object.id);
                 broadcastActivity('object-deleted', {
                     objectName: getObjectName(deletedObject),
@@ -740,6 +1089,22 @@ export function initEvents() {
                     objectType: fillResult.objectType,
                 });
             }
+            return;
+        }
+
+        if (app.currentTool === 'connector') {
+            const object = findObjectAt(point);
+
+            if (object && !object.locked) {
+                app.drag.start = point;
+                app.drag.last = point;
+                app.drag.connectorStartId = object.id;
+            }
+            return;
+        }
+
+        if (app.currentTool === 'laser') {
+            sendLaserPosition(point, true);
             return;
         }
 
@@ -791,6 +1156,10 @@ export function initEvents() {
         }
 
         if (app.currentTool === 'select') {
+            updateRotate(point, e);
+            if (app.drag.rotateStart) {
+                return;
+            }
             updateResize(point);
             if (app.drag.resizeHandle) {
                 return;
@@ -801,6 +1170,11 @@ export function initEvents() {
 
         if (app.currentTool === 'lasso') {
             updateLasso(point);
+            return;
+        }
+
+        if (app.currentTool === 'laser') {
+            sendLaserPosition(point, true);
             return;
         }
 
@@ -820,6 +1194,35 @@ export function initEvents() {
         finishDraft();
         if (app.currentTool === 'lasso') {
             finishLasso();
+        }
+        if (app.currentTool === 'connector' && app.drag.connectorStartId) {
+            const point = getCanvasPoint(app.mouse.x, app.mouse.y);
+            const startObject = app.objects.find(object => object.id === app.drag.connectorStartId);
+            const endObject = findObjectAt(point);
+
+            if (startObject && endObject && !endObject.locked && startObject.id !== endObject.id) {
+                const connector = createConnector(startObject, endObject, app.fillColor);
+                saveHistory();
+                app.objects.push(connector);
+                setSelection([connector]);
+                broadcastBoardState();
+                broadcastActivity('shape-added', {
+                    color: connector.color,
+                    objectId: connector.id,
+                    objectType: connector.type,
+                });
+            }
+        }
+        if (app.currentTool === 'laser') {
+            sendLaserPosition(getCanvasPoint(app.mouse.x, app.mouse.y), false);
+        }
+        if (app.currentTool === 'select' && app.drag.rotateStart && app.drag.moved) {
+            const selectedObjects = getSelectedObjects();
+            broadcastBoardState();
+            broadcastActivity('object-rotated', {
+                objectId: selectedObjects.length === 1 ? selectedObjects[0].id : undefined,
+                objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
+            });
         }
         if (app.currentTool === 'select' && app.drag.resizeHandle && app.drag.moved) {
             const selectedObjects = getSelectedObjects();
@@ -845,6 +1248,9 @@ export function initEvents() {
         app.drag.resizeHandle = null;
         app.drag.resizeBounds = null;
         app.drag.resizeObjects = null;
+        app.drag.rotateStart = null;
+        app.drag.rotateObjects = null;
+        app.drag.connectorStartId = null;
     });
 
     window.addEventListener('keydown', event => {
@@ -855,9 +1261,14 @@ export function initEvents() {
         }
 
         event.preventDefault();
-        selectedObjects.forEach(object => deleteObjectById(object.id));
+        const deletedObjects = deleteObjectsByIds(selectedObjects.map(object => object.id));
+
+        if (!deletedObjects.length) {
+            return;
+        }
+
         broadcastActivity('object-deleted', {
-            objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
+            objectName: deletedObjects.length === 1 ? getObjectName(deletedObjects[0]) : `${deletedObjects.length} objects`,
         });
     });
 

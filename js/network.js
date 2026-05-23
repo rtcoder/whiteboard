@@ -9,9 +9,11 @@ let updatePeers = () => {};
 let suppressBroadcast = false;
 let currentRevision = 0;
 let lastCursorSentAt = 0;
+let lastLaserSentAt = 0;
 const DEBUG_NETWORK = true;
 const DEBUG_CURSOR = false;
 const CURSOR_SEND_INTERVAL = 50;
+const LASER_SEND_INTERVAL = 40;
 
 function logNetwork(...args) {
     if (DEBUG_NETWORK) {
@@ -202,6 +204,35 @@ export function sendCursorPosition(point) {
     });
 }
 
+export function sendSelectionState(objectIds = []) {
+    send({
+        type: 'selection',
+        objectIds,
+        name: app.localUser.name,
+        color: app.localUser.color,
+        initials: app.localUser.initials,
+    });
+}
+
+export function sendLaserPosition(point, active = true) {
+    const now = performance.now();
+
+    if (active && now - lastLaserSentAt < LASER_SEND_INTERVAL) {
+        return;
+    }
+
+    lastLaserSentAt = now;
+    send({
+        type: 'laser',
+        active,
+        x: point.x,
+        y: point.y,
+        name: app.localUser.name,
+        color: app.localUser.color,
+        initials: app.localUser.initials,
+    });
+}
+
 export function initNetwork({render, onPeersChange}) {
     renderBoard = render;
     updatePeers = onPeersChange;
@@ -333,6 +364,35 @@ export function initNetwork({render, onPeersChange}) {
                 y: message.y,
             });
             updatePeers();
+            return;
+        }
+
+        if (message.type === 'selection') {
+            const fallbackAvatar = getUserAvatar(message.name || 'Guest', `${message.name || 'Guest'}:${message.clientId}`);
+            const collaborator = app.collaborators.get(message.clientId) || {
+                id: message.clientId,
+                name: message.name || 'Guest',
+                color: message.color || fallbackAvatar.color,
+                initials: message.initials || fallbackAvatar.initials,
+            };
+            collaborator.selectedObjectIds = message.objectIds || [];
+            app.collaborators.set(message.clientId, collaborator);
+            renderBoard();
+            updatePeers();
+            return;
+        }
+
+        if (message.type === 'laser') {
+            const fallbackAvatar = getUserAvatar(message.name || 'Guest', `${message.name || 'Guest'}:${message.clientId}`);
+            const collaborator = app.collaborators.get(message.clientId) || {
+                id: message.clientId,
+                name: message.name || 'Guest',
+                color: message.color || fallbackAvatar.color,
+                initials: message.initials || fallbackAvatar.initials,
+            };
+            collaborator.laser = message.active ? {x: message.x, y: message.y, expiresAt: Date.now() + 1200} : null;
+            app.collaborators.set(message.clientId, collaborator);
+            window.whiteboardUpdateRemoteLasers?.();
             return;
         }
 

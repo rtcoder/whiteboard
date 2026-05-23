@@ -7,6 +7,7 @@ const url = require('url');
 const PORT = process.env.PORT || 8080;
 const HOST = process.env.HOST || '127.0.0.1';
 const ROOT = __dirname;
+const DATA_DIR = path.join(ROOT, '.whiteboard-rooms');
 const rooms = new Map();
 const DEBUG_WS = true;
 const DEBUG_WS_CURSOR = false;
@@ -18,6 +19,10 @@ const mimeTypes = {
     '.json': 'application/json',
     '.svg': 'image/svg+xml',
 };
+
+if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, {recursive: true});
+}
 
 function logWs(...args) {
     if (DEBUG_WS) {
@@ -58,15 +63,38 @@ const server = http.createServer((req, res) => {
 
 function getRoom(roomId) {
     if (!rooms.has(roomId)) {
+        const storedRoom = loadRoom(roomId);
         rooms.set(roomId, {
-            boardState: [],
+            id: roomId,
+            boardState: storedRoom.boardState || [],
             clients: new Set(),
-            revision: 0,
-            activityLog: [],
+            revision: storedRoom.revision || 0,
+            activityLog: storedRoom.activityLog || [],
         });
     }
 
     return rooms.get(roomId);
+}
+
+function getRoomFile(roomId) {
+    return path.join(DATA_DIR, `${roomId.replace(/[^a-zA-Z0-9-]/g, '')}.json`);
+}
+
+function loadRoom(roomId) {
+    try {
+        return JSON.parse(fs.readFileSync(getRoomFile(roomId), 'utf8'));
+    } catch {
+        return {};
+    }
+}
+
+function persistRoom(roomId, room) {
+    const payload = JSON.stringify({
+        boardState: room.boardState,
+        revision: room.revision,
+        activityLog: room.activityLog,
+    });
+    fs.writeFile(getRoomFile(roomId), payload, () => {});
 }
 
 function encodeFrame(payload) {
@@ -165,6 +193,9 @@ function createActivity(kind, user, details = {}) {
 
 function addRoomActivity(room, event) {
     room.activityLog = [...room.activityLog, event].slice(-MAX_ACTIVITY_ITEMS);
+    if (room.id) {
+        persistRoom(room.id, room);
+    }
 }
 
 function broadcastActivity(room, sender, event) {
@@ -294,6 +325,7 @@ server.on('upgrade', (req, socket) => {
                 bitmapObjects: room.boardState.filter(object => object.type === 'bitmap').length,
                 clients: room.clients.size,
             });
+            persistRoom(roomId, room);
             send(socket, {
                 type: 'board-ack',
                 revision: room.revision,

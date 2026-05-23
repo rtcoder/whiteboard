@@ -321,6 +321,12 @@
         }
     }
 
+    button:disabled {
+        cursor: not-allowed;
+        opacity: 0.38;
+        box-shadow: none;
+    }
+
     &:not(.hidden) {
         .line-width-preview:hover {
             .list {

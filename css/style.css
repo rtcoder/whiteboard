@@ -189,6 +189,74 @@ svg, img {
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
 }
 
+.laser-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+}
+
+.laser-dot {
+    position: fixed;
+    width: 18px;
+    height: 18px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: var(--laser-color);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--laser-color) 20%, transparent),
+        0 0 18px color-mix(in srgb, var(--laser-color) 65%, transparent);
+    transform: translate(-50%, -50%);
+}
+
+.laser-dot span {
+    position: absolute;
+    top: 18px;
+    left: 10px;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: var(--laser-color);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.minimap {
+    position: fixed;
+    right: 14px;
+    bottom: 82px;
+    z-index: 2;
+    width: 180px;
+    height: 120px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 16px 38px rgba(15, 23, 42, 0.14);
+    backdrop-filter: blur(14px);
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.minimap svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.minimap .mini-object {
+    fill: rgba(37, 99, 235, 0.26);
+    stroke: rgba(37, 99, 235, 0.65);
+    stroke-width: 1.5;
+}
+
+.minimap .mini-viewport {
+    fill: rgba(15, 23, 42, 0.06);
+    stroke: rgba(15, 23, 42, 0.45);
+    stroke-width: 1.5;
+}
+
 #whiteboard,
 #whiteboardSvg {
     cursor: none;
@@ -285,6 +353,16 @@ svg, img {
     font-size: 11px;
     font-weight: 800;
     letter-spacing: 0;
+    cursor: pointer;
+}
+
+button.avatar {
+    border-color: var(--surface-strong);
+    font: inherit;
+}
+
+.avatar.following {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--avatar-color) 24%, transparent);
 }
 
 .avatar.active::after {
@@ -509,5 +587,12 @@ body.activity-open .activity-panel {
     .activity-toggle,
     .share-button {
         padding: 0 10px;
+    }
+
+    .minimap {
+        width: 128px;
+        height: 86px;
+        right: 10px;
+        bottom: 76px;
     }
 }

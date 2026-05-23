@@ -28,6 +28,9 @@
 <canvas id="whiteboard"></canvas>
 <svg id="whiteboardSvg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
 <div class="draw-handler"></div>
+<div class="laser-layer" aria-hidden="true"></div>
+<button class="minimap" type="button" aria-label="Minimap"><svg viewBox="0 0 240 160"></svg></button>
+<input id="imageImport" type="file" accept="image/*" hidden>
 
 <header class="workspace-bar">
   <div class="board-title">
@@ -84,12 +87,14 @@
     <div class="tool-menu">
       <button class="tool-menu-trigger" title="Shapes" aria-label="Shapes"><svg viewBox="0 0 24 24" fill="none"><path d="M5 6H13V14H5V6Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M16 5L21 10L16 15L11 10L16 5Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/></svg></button>
       <div class="tool-popover"><div class="tool-group">
+        <button class="tool" id="connector" title="Connector" aria-label="Connector"><svg viewBox="0 0 24 24" fill="none"><path d="M7 7H9C14 7 10 17 15 17H17" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/><circle cx="5" cy="7" r="2" stroke="var(--icon-color)" stroke-width="2"/><circle cx="19" cy="17" r="2" stroke="var(--icon-color)" stroke-width="2"/></svg></button>
         <button class="tool" id="line" title="Line" aria-label="Line"><svg viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
         <button class="tool" id="arrow" title="Arrow" aria-label="Arrow"><svg viewBox="0 0 24 24" fill="none"><path d="M5 19L18 6" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/><path d="M10 6H18V14" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button class="tool" id="rectangle" title="Rectangle" aria-label="Rectangle"><svg viewBox="0 0 24 24" fill="none"><path d="M5 6H19V18H5V6Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/></svg></button>
         <button class="tool" id="ellipse" title="Ellipse" aria-label="Ellipse"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12C4 8.7 7.6 6 12 6S20 8.7 20 12S16.4 18 12 18S4 15.3 4 12Z" stroke="var(--icon-color)" stroke-width="2"/></svg></button>
         <button class="tool" id="diamond" title="Diamond" aria-label="Diamond"><svg viewBox="0 0 24 24" fill="none"><path d="M12 4L20 12L12 20L4 12L12 4Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/></svg></button>
         <button class="tool" id="polygon" title="Polygon" aria-label="Polygon"><svg viewBox="0 0 24 24" fill="none"><path d="M8 5H16L21 12L16 19H8L3 12L8 5Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/></svg></button>
+        <button class="tool" id="frame" title="Frame" aria-label="Frame"><svg viewBox="0 0 24 24" fill="none"><path d="M5 6H19V18H5V6Z" stroke="var(--icon-color)" stroke-width="2" stroke-dasharray="4 3" stroke-linejoin="round"/><path d="M8 3H14" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
       </div></div>
     </div>
 
@@ -101,18 +106,34 @@
         <button class="tool" id="callout" title="Callout" aria-label="Callout"><svg viewBox="0 0 24 24" fill="none"><path d="M5 5H19V15H13L9 20V15H5V5Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M8 9H16M8 12H13" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
         <button class="tool" id="list" title="Bulleted list" aria-label="Bulleted list"><svg viewBox="0 0 24 24" fill="none"><path d="M10 7H19M10 12H19M10 17H19" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/><path d="M6 7H6.01M6 12H6.01M6 17H6.01" stroke="var(--icon-color)" stroke-width="3" stroke-linecap="round"/></svg></button>
         <button class="tool" id="label" title="Label" aria-label="Label"><svg viewBox="0 0 24 24" fill="none"><path d="M5 8C5 6.9 5.9 6 7 6H14L20 12L14 18H7C5.9 18 5 17.1 5 16V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M8 12H13" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button class="tool" id="comment" title="Comment" aria-label="Comment"><svg viewBox="0 0 24 24" fill="none"><path d="M5 5H19V15H13L9 20V15H5V5Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M8 9H16M8 12H14" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
       </div></div>
     </div>
 
     <div class="tool-menu">
       <button class="tool-menu-trigger" title="Edit actions" aria-label="Edit actions"><svg viewBox="0 0 24 24" fill="none"><path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M5 15H4V4H15V5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <div class="tool-popover"><div class="tool-group">
+        <button class="tool" id="lasso" title="Lasso select" aria-label="Lasso select"><svg viewBox="0 0 24 24" fill="none"><path d="M7 6C4.5 7.6 4 11.2 5.8 13.5C8.5 17.1 16.4 17.5 18.8 13.7C21.4 9.5 16.4 5.2 11.4 6.5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 3"/><path d="M13 15L18 21" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button id="group" title="Group" aria-label="Group"><svg viewBox="0 0 24 24" fill="none"><path d="M4 8V4H8M16 4H20V8M20 16V20H16M8 20H4V16" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 8H16V16H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/></svg></button>
+        <button id="ungroup" title="Ungroup" aria-label="Ungroup"><svg viewBox="0 0 24 24" fill="none"><path d="M4 8V4H8M16 4H20V8M20 16V20H16M8 20H4V16" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 9H12V12H9V9ZM13 13H16V16H13V13Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/></svg></button>
+        <button id="lock" title="Lock" aria-label="Lock"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10H17V20H7V10Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M9 10V7C9 5.3 10.3 4 12 4S15 5.3 15 7V10" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button id="unlock" title="Unlock" aria-label="Unlock"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10H17V20H7V10Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M9 10V7C9 5.3 10.3 4 12 4C13.1 4 14 4.5 14.5 5.3" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
         <button id="duplicate" title="Duplicate" aria-label="Duplicate"><svg viewBox="0 0 24 24" fill="none"><path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M5 15H4V4H15V5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button id="bringForward" title="Bring forward" aria-label="Bring forward"><svg viewBox="0 0 24 24" fill="none"><path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M12 14V10M12 10L10 12M12 10L14 12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button id="sendBackward" title="Send backward" aria-label="Send backward"><svg viewBox="0 0 24 24" fill="none"><path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M12 10V14M12 14L10 12M12 14L14 12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button id="clear" title="Clear" aria-label="Clear"><svg viewBox="0 0 24 24" fill="none"><path d="M9 9L15 15M15 9L9 15" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="var(--icon-color)" stroke-width="2"/></svg></button>
         <button id="exportPng" title="Export PNG" aria-label="Export PNG"><svg viewBox="0 0 24 24" fill="none"><path d="M12 4V14M12 14L8 10M12 14L16 10" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 17V20H19V17" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button id="copyImage" title="Copy as image" aria-label="Copy as image"><svg viewBox="0 0 24 24" fill="none"><path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M11 15L13 13L15 15L17 12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="importImage" title="Import image" aria-label="Import image"><svg viewBox="0 0 24 24" fill="none"><path d="M6 5H18V19H6V5Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M8 16L11 13L13 15L16 11L18 14" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="9" r="1.5" stroke="var(--icon-color)" stroke-width="2"/></svg></button>
+        <button id="snapshot" title="Snapshot" aria-label="Snapshot"><svg viewBox="0 0 24 24" fill="none"><path d="M6 7H18V19H6V7Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M9 7L10 5H14L15 7" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3" stroke="var(--icon-color)" stroke-width="2"/></svg></button>
+        <button id="restoreSnapshot" title="Restore snapshot" aria-label="Restore snapshot"><svg viewBox="0 0 24 24" fill="none"><path d="M8 8H5V5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 8.5C7 6.4 9.5 5 12.3 5C16.6 5 20 8.4 20 12.7S16.6 20 12.3 20C9.4 20 6.9 18.4 5.7 16" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/><path d="M12 9V13L15 15" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
+      </div></div>
+    </div>
+
+    <div class="tool-menu">
+      <button class="tool-menu-trigger" title="Collaboration tools" aria-label="Collaboration tools"><svg viewBox="0 0 24 24" fill="none"><path d="M5 19L11 5L13 13L19 15L5 19Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/></svg></button>
+      <div class="tool-popover"><div class="tool-group">
+        <button class="tool" id="laser" title="Laser pointer" aria-label="Laser pointer"><svg viewBox="0 0 24 24" fill="none"><path d="M5 19L11 5L13 13L19 15L5 19Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M15 5L19 3M18 9H22M13 2V6" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
       </div></div>
     </div>
 

@@ -11,9 +11,11 @@ const objectLabels = {
     bitmap: 'drawing',
     callout: 'callout',
     comment: 'comment',
+    connector: 'connector',
     diamond: 'diamond',
     ellipse: 'ellipse',
     frame: 'frame',
+    image: 'image',
     label: 'label',
     line: 'line',
     list: 'list',
@@ -40,6 +42,14 @@ const activityIcons = {
     'sticky-added': '<path d="M7 5H17V14L12 19H7V5Z"/><path d="M12 19V14H17"/>',
     'text-added': '<path d="M6 6H18"/><path d="M12 6V19"/><path d="M9 19H15"/>',
     'comment-added': '<path d="M5 5H19V15H13L9 20V15H5V5Z"/><path d="M8 9H16M8 12H14"/>',
+    'image-imported': '<path d="M6 5H18V19H6V5Z"/><path d="M8 16L11 13L13 15L16 11L18 14"/><circle cx="10" cy="9" r="1.5"/>',
+    'object-rotated': '<path d="M7 7C8.3 5.8 10 5 12 5C15.9 5 19 8.1 19 12S15.9 19 12 19C9.8 19 7.8 18 6.5 16.4"/><path d="M7 7H4V4"/>',
+    'objects-grouped': '<path d="M4 8V4H8M16 4H20V8M20 16V20H16M8 20H4V16"/><path d="M8 8H16V16H8V8Z"/>',
+    'objects-ungrouped': '<path d="M4 8V4H8M16 4H20V8M20 16V20H16M8 20H4V16"/><path d="M9 9H12V12H9V9ZM13 13H16V16H13V13Z"/>',
+    'objects-locked': '<path d="M7 10H17V20H7V10Z"/><path d="M9 10V7C9 5.3 10.3 4 12 4S15 5.3 15 7V10"/>',
+    'objects-unlocked': '<path d="M7 10H17V20H7V10Z"/><path d="M9 10V7C9 5.3 10.3 4 12 4C13.1 4 14 4.5 14.5 5.3"/>',
+    'snapshot-created': '<path d="M6 7H18V19H6V7Z"/><path d="M9 7L10 5H14L15 7"/><circle cx="12" cy="13" r="3"/>',
+    'snapshot-restored': '<path d="M8 8H5V5"/><path d="M5.5 8.5C7 6.4 9.5 5 12.3 5C16.6 5 20 8.4 20 12.7S16.6 20 12.3 20C9.4 20 6.9 18.4 5.7 16"/><path d="M12 9V13L15 15"/>',
     'tool-used': '<path d="M6 18L16.5 7.5C17.3 6.7 18.6 6.7 19.3 7.5C20.1 8.3 20.1 9.6 19.3 10.3L8.8 20H5L6 18Z"/><path d="M14.5 9.5L17.5 12.5"/>',
     'user-joined': '<path d="M8 20C8 16.7 10.2 15 12 15C13.8 15 16 16.7 16 20"/><circle cx="12" cy="9" r="3"/><path d="M18 8V14M15 11H21"/>',
     'user-left': '<path d="M8 20C8 16.7 10.2 15 12 15C13.8 15 16 16.7 16 20"/><circle cx="12" cy="9" r="3"/><path d="M16 11H22"/><path d="M19 8L22 11L19 14"/>',
@@ -134,6 +144,38 @@ function getActivityText(event) {
 
     if (event.kind === 'object-resized') {
         return `${user} resized ${details.objectName}`;
+    }
+
+    if (event.kind === 'object-rotated') {
+        return `${user} rotated ${details.objectName}`;
+    }
+
+    if (event.kind === 'objects-grouped') {
+        return `${user} grouped ${details.objectName}`;
+    }
+
+    if (event.kind === 'objects-ungrouped') {
+        return `${user} ungrouped ${details.objectName}`;
+    }
+
+    if (event.kind === 'objects-locked') {
+        return `${user} locked ${details.objectName}`;
+    }
+
+    if (event.kind === 'objects-unlocked') {
+        return `${user} unlocked ${details.objectName}`;
+    }
+
+    if (event.kind === 'image-imported') {
+        return `${user} imported ${details.objectName}`;
+    }
+
+    if (event.kind === 'snapshot-created') {
+        return `${user} created a snapshot`;
+    }
+
+    if (event.kind === 'snapshot-restored') {
+        return `${user} restored a snapshot`;
     }
 
     if (event.kind === 'object-duplicated') {

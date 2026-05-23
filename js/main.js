@@ -25,6 +25,8 @@ export const app = {
     selectedObjectId: null,
     selectedObjectIds: [],
     lassoBounds: null,
+    followUserId: null,
+    snapshots: [],
     history: {
         undo: [],
         redo: [],
@@ -36,6 +38,8 @@ export const app = {
         resizeHandle: null,
         resizeBounds: null,
         resizeObjects: null,
+        rotateStart: null,
+        rotateObjects: null,
     },
     roomId: null,
     clientId: storedClientId,
