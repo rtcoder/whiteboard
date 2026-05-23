@@ -23,6 +23,8 @@ export const app = {
     objects: [],
     draftObject: null,
     selectedObjectId: null,
+    selectedObjectIds: [],
+    lassoBounds: null,
     history: {
         undo: [],
         redo: [],
@@ -31,6 +33,9 @@ export const app = {
         start: null,
         last: null,
         moved: false,
+        resizeHandle: null,
+        resizeBounds: null,
+        resizeObjects: null,
     },
     roomId: null,
     clientId: storedClientId,

@@ -2,6 +2,8 @@ import {moveCursor} from './cursor.js';
 import {
     clear,
     createCallout,
+    createComment,
+    createFrame,
     createLabel,
     createList,
     createPath,
@@ -15,12 +17,17 @@ import {
     findObjectAt,
     floodFill,
     getObjectBounds,
+    getObjectsInBounds,
     getObjectsBounds,
-    moveObject,
+    getSelectedObjects,
+    getSelectedObjectsBounds,
+    moveObjects,
     moveObjectLayer,
+    normalizeFrame,
     copyBoardImage,
     redo,
     render,
+    resizeObjects,
     saveHistory,
     undo,
 } from './drawing.js';
@@ -53,6 +60,8 @@ function setActiveTool(button) {
     button.classList.add('active');
     updateActiveToolMenu(button);
     app.selectedObjectId = null;
+    app.selectedObjectIds = [];
+    app.lassoBounds = null;
     render();
 }
 
@@ -218,6 +227,102 @@ function fitBoundsToScreen(bounds) {
     applyCanvasTransform();
 }
 
+function setSelection(objects) {
+    app.selectedObjectIds = objects.map(object => object.id);
+    app.selectedObjectId = app.selectedObjectIds[0] || null;
+}
+
+function getNormalizedBounds(start, end) {
+    return {
+        x: Math.min(start.x, end.x),
+        y: Math.min(start.y, end.y),
+        width: Math.abs(end.x - start.x),
+        height: Math.abs(end.y - start.y),
+    };
+}
+
+function getResizeHandleAt(point) {
+    const bounds = getSelectedObjectsBounds();
+
+    if (!bounds) {
+        return null;
+    }
+
+    const size = Math.max(12, 14 / app.zoom.scale);
+    const handles = [
+        {handle: 'nw', x: bounds.x, y: bounds.y},
+        {handle: 'ne', x: bounds.x + bounds.width, y: bounds.y},
+        {handle: 'se', x: bounds.x + bounds.width, y: bounds.y + bounds.height},
+        {handle: 'sw', x: bounds.x, y: bounds.y + bounds.height},
+    ];
+
+    return handles.find(item => (
+        Math.abs(point.x - item.x) <= size &&
+        Math.abs(point.y - item.y) <= size
+    ))?.handle || null;
+}
+
+function beginResize(handle) {
+    const selectedObjects = getSelectedObjects();
+
+    if (!handle || !selectedObjects.length) {
+        return false;
+    }
+
+    const objectsToResize = new Set(selectedObjects);
+    selectedObjects.forEach(object => {
+        if (object.linkedObjectIds?.length) {
+            app.objects
+                .filter(item => object.linkedObjectIds.includes(item.id))
+                .forEach(item => objectsToResize.add(item));
+        }
+
+        app.objects
+            .filter(item => item.linkedObjectIds?.includes(object.id))
+            .forEach(item => objectsToResize.add(item));
+    });
+
+    app.drag.resizeHandle = handle;
+    app.drag.resizeBounds = getSelectedObjectsBounds();
+    app.drag.resizeObjects = [...objectsToResize].map(object => ({
+        object,
+        bounds: getObjectBounds(object),
+        original: {...object},
+        points: object.points?.map(point => ({...point})) || null,
+    }));
+    saveHistory();
+    return true;
+}
+
+function getResizedBounds(startBounds, handle, point) {
+    const minSize = 16;
+    const left = handle.includes('w') ? Math.min(point.x, startBounds.x + startBounds.width - minSize) : startBounds.x;
+    const right = handle.includes('e') ? Math.max(point.x, startBounds.x + minSize) : startBounds.x + startBounds.width;
+    const top = handle.includes('n') ? Math.min(point.y, startBounds.y + startBounds.height - minSize) : startBounds.y;
+    const bottom = handle.includes('s') ? Math.max(point.y, startBounds.y + minSize) : startBounds.y + startBounds.height;
+
+    return {
+        x: left,
+        y: top,
+        width: right - left,
+        height: bottom - top,
+    };
+}
+
+function updateResize(point) {
+    if (!app.drag.resizeHandle || !app.drag.resizeBounds || !app.drag.resizeObjects) {
+        return;
+    }
+
+    resizeObjects(
+        app.drag.resizeObjects,
+        app.drag.resizeBounds,
+        getResizedBounds(app.drag.resizeBounds, app.drag.resizeHandle, point),
+    );
+    app.drag.moved = true;
+    render();
+}
+
 function startPath(point) {
     const isEraser = app.currentTool === 'eraser';
     const isPencil = app.currentTool === 'pencil';
@@ -251,13 +356,17 @@ function finishDraft() {
         return;
     }
 
+    if (object.type === 'frame') {
+        normalizeFrame(object);
+    }
+
     saveHistory();
     app.objects.push(object);
-    app.selectedObjectId = object.id;
+    setSelection([object]);
     render();
     broadcastBoardState();
 
-    if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'].includes(object.type)) {
+    if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon', 'frame'].includes(object.type)) {
         broadcastActivity('shape-added', {
             color: object.color,
             objectId: object.id,
@@ -276,6 +385,7 @@ function addTextObject(point, type) {
         callout: 'Callout text',
         label: 'Label text',
         list: 'List items, separated by commas',
+        comment: 'Comment',
         sticky: 'Note content',
         text: 'Text',
     }[type] || 'Text';
@@ -289,16 +399,17 @@ function addTextObject(point, type) {
         callout: createCallout,
         label: createLabel,
         list: createList,
+        comment: createComment,
         sticky: createSticky,
         text: createText,
     };
     const object = (objectFactories[type] || createText)(point, text.trim());
     saveHistory();
     app.objects.push(object);
-    app.selectedObjectId = object.id;
+    setSelection([object]);
     render();
     broadcastBoardState();
-    broadcastActivity(type === 'sticky' ? 'sticky-added' : 'text-added', {
+    broadcastActivity(type === 'sticky' ? 'sticky-added' : type === 'comment' ? 'comment-added' : 'text-added', {
         objectId: object.id,
         objectType: object.type,
         text,
@@ -306,9 +417,9 @@ function addTextObject(point, type) {
 }
 
 function moveSelectedObject(point) {
-    const object = app.objects.find(item => item.id === app.selectedObjectId);
+    const selectedObjects = getSelectedObjects();
 
-    if (!object || !app.drag.last) {
+    if (!selectedObjects.length || !app.drag.last) {
         return;
     }
 
@@ -316,7 +427,7 @@ function moveSelectedObject(point) {
         saveHistory();
     }
 
-    moveObject(object, point.x - app.drag.last.x, point.y - app.drag.last.y);
+    moveObjects(selectedObjects, point.x - app.drag.last.x, point.y - app.drag.last.y);
     app.drag.last = point;
     app.drag.moved = true;
     render();
@@ -342,6 +453,26 @@ function updateDraftShape(point) {
 
     app.draftObject.x2 = point.x;
     app.draftObject.y2 = point.y;
+    render();
+}
+
+function updateLasso(point) {
+    if (!app.drag.start) {
+        return;
+    }
+
+    app.lassoBounds = getNormalizedBounds(app.drag.start, point);
+    render();
+}
+
+function finishLasso() {
+    if (!app.lassoBounds) {
+        return;
+    }
+
+    const selectedObjects = getObjectsInBounds(app.lassoBounds);
+    setSelection(selectedObjects);
+    app.lassoBounds = null;
     render();
 }
 
@@ -412,8 +543,7 @@ export function initEvents() {
         fitBoundsToScreen(getObjectsBounds() || {x: 0, y: 0, width: app.canvas.width, height: app.canvas.height});
     });
     zoomSelectionButton.addEventListener('click', () => {
-        const selectedObject = app.objects.find(object => object.id === app.selectedObjectId);
-        fitBoundsToScreen(getObjectBounds(selectedObject));
+        fitBoundsToScreen(getSelectedObjectsBounds());
     });
     fillColorInput.addEventListener('input', () => {
         app.fillColor = fillColorInput.value;
@@ -563,9 +693,24 @@ export function initEvents() {
         }
 
         if (app.currentTool === 'select') {
+            const resizeHandle = getResizeHandleAt(point);
+
+            if (beginResize(resizeHandle)) {
+                app.drag.last = point;
+                return;
+            }
+
             const object = findObjectAt(point);
-            app.selectedObjectId = object?.id || null;
+            setSelection(object ? [object] : []);
             app.drag.last = point;
+            render();
+            return;
+        }
+
+        if (app.currentTool === 'lasso') {
+            app.drag.start = point;
+            app.drag.last = point;
+            app.lassoBounds = getNormalizedBounds(point, point);
             render();
             return;
         }
@@ -598,10 +743,24 @@ export function initEvents() {
             return;
         }
 
-        if (['text', 'sticky', 'callout', 'list', 'label'].includes(app.currentTool)) {
+        if (['text', 'sticky', 'callout', 'list', 'label', 'comment'].includes(app.currentTool)) {
             app.isDrawing = false;
             showToolbar();
             addTextObject(point, app.currentTool);
+            return;
+        }
+
+        if (app.currentTool === 'frame') {
+            const title = window.prompt('Frame name', 'Frame');
+
+            if (!title?.trim()) {
+                app.isDrawing = false;
+                showToolbar();
+                render();
+                return;
+            }
+
+            app.draftObject = createFrame(point, title.trim());
             return;
         }
 
@@ -632,11 +791,20 @@ export function initEvents() {
         }
 
         if (app.currentTool === 'select') {
+            updateResize(point);
+            if (app.drag.resizeHandle) {
+                return;
+            }
             moveSelectedObject(point);
             return;
         }
 
-        if (['rectangle', 'ellipse', 'diamond', 'polygon', 'line', 'arrow'].includes(app.currentTool)) {
+        if (app.currentTool === 'lasso') {
+            updateLasso(point);
+            return;
+        }
+
+        if (['rectangle', 'ellipse', 'diamond', 'polygon', 'line', 'arrow', 'frame'].includes(app.currentTool)) {
             updateDraftShape(point);
             return;
         }
@@ -650,34 +818,46 @@ export function initEvents() {
         deactivateMovingToolbar();
 
         finishDraft();
-        if (app.currentTool === 'select' && app.drag.moved) {
-            const movedObject = app.objects.find(item => item.id === app.selectedObjectId);
+        if (app.currentTool === 'lasso') {
+            finishLasso();
+        }
+        if (app.currentTool === 'select' && app.drag.resizeHandle && app.drag.moved) {
+            const selectedObjects = getSelectedObjects();
             broadcastBoardState();
-            broadcastActivity('object-moved', {
-                objectId: movedObject?.id,
-                objectName: getObjectName(movedObject),
+            broadcastActivity('object-resized', {
+                objectId: selectedObjects.length === 1 ? selectedObjects[0].id : undefined,
+                objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
             });
+        }
+        if (app.currentTool === 'select' && app.drag.moved) {
+            const selectedObjects = getSelectedObjects();
+            broadcastBoardState();
+            if (!app.drag.resizeHandle) {
+                broadcastActivity('object-moved', {
+                    objectId: selectedObjects.length === 1 ? selectedObjects[0].id : undefined,
+                    objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
+                });
+            }
         }
         app.drag.start = null;
         app.drag.last = null;
         app.drag.moved = false;
+        app.drag.resizeHandle = null;
+        app.drag.resizeBounds = null;
+        app.drag.resizeObjects = null;
     });
 
     window.addEventListener('keydown', event => {
-        if (!['Backspace', 'Delete'].includes(event.key) || !app.selectedObjectId) {
-            return;
-        }
+        const selectedObjects = getSelectedObjects();
 
-        const objectIndex = app.objects.findIndex(object => object.id === app.selectedObjectId);
-
-        if (objectIndex === -1) {
+        if (!['Backspace', 'Delete'].includes(event.key) || !selectedObjects.length) {
             return;
         }
 
         event.preventDefault();
-        const object = deleteObjectById(app.selectedObjectId);
+        selectedObjects.forEach(object => deleteObjectById(object.id));
         broadcastActivity('object-deleted', {
-            objectName: getObjectName(object),
+            objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
         });
     });
 

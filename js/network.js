@@ -284,6 +284,8 @@ export function initNetwork({render, onPeersChange}) {
             });
             suppressBroadcast = true;
             app.objects = boardState.map(deserializeObject);
+            app.selectedObjectId = null;
+            app.selectedObjectIds = [];
             suppressBroadcast = false;
             renderBoard();
             refreshActivityLog();
@@ -308,6 +310,7 @@ export function initNetwork({render, onPeersChange}) {
             suppressBroadcast = true;
             app.objects = (message.objects || []).map(deserializeObject);
             app.selectedObjectId = null;
+            app.selectedObjectIds = [];
             suppressBroadcast = false;
             renderBoard();
             refreshActivityLog();

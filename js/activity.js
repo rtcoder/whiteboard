@@ -10,8 +10,10 @@ const objectLabels = {
     arrow: 'arrow',
     bitmap: 'drawing',
     callout: 'callout',
+    comment: 'comment',
     diamond: 'diamond',
     ellipse: 'ellipse',
+    frame: 'frame',
     label: 'label',
     line: 'line',
     list: 'list',
@@ -31,11 +33,13 @@ const activityIcons = {
     'history-used': '<path d="M8 8H5V5"/><path d="M5.5 8.5C7 6.4 9.5 5 12.3 5C16.6 5 20 8.4 20 12.7S16.6 20 12.3 20C9.4 20 6.9 18.4 5.7 16"/>',
     'object-deleted': '<path d="M7 8H17"/><path d="M10 8V6H14V8"/><path d="M9 11V17M12 11V17M15 11V17"/><path d="M8 8L9 20H15L16 8"/>',
     'object-moved': '<path d="M12 3V21M12 3L9 6M12 3L15 6M12 21L9 18M12 21L15 18"/><path d="M3 12H21M3 12L6 9M3 12L6 15M21 12L18 9M21 12L18 15"/>',
+    'object-resized': '<path d="M5 9V5H9"/><path d="M19 15V19H15"/><path d="M5 5L11 11"/><path d="M19 19L13 13"/>',
     'object-duplicated': '<path d="M8 8H18V18H8V8Z"/><path d="M5 15H4V4H15V5"/>',
     'object-layered': '<path d="M6 8L12 4L18 8L12 12L6 8Z"/><path d="M6 12L12 16L18 12"/><path d="M6 16L12 20L18 16"/>',
     'shape-added': '<path d="M6 6H18V18H6V6Z"/><path d="M12 9V15M9 12H15"/>',
     'sticky-added': '<path d="M7 5H17V14L12 19H7V5Z"/><path d="M12 19V14H17"/>',
     'text-added': '<path d="M6 6H18"/><path d="M12 6V19"/><path d="M9 19H15"/>',
+    'comment-added': '<path d="M5 5H19V15H13L9 20V15H5V5Z"/><path d="M8 9H16M8 12H14"/>',
     'tool-used': '<path d="M6 18L16.5 7.5C17.3 6.7 18.6 6.7 19.3 7.5C20.1 8.3 20.1 9.6 19.3 10.3L8.8 20H5L6 18Z"/><path d="M14.5 9.5L17.5 12.5"/>',
     'user-joined': '<path d="M8 20C8 16.7 10.2 15 12 15C13.8 15 16 16.7 16 20"/><circle cx="12" cy="9" r="3"/><path d="M18 8V14M15 11H21"/>',
     'user-left': '<path d="M8 20C8 16.7 10.2 15 12 15C13.8 15 16 16.7 16 20"/><circle cx="12" cy="9" r="3"/><path d="M16 11H22"/><path d="M19 8L22 11L19 14"/>',
@@ -112,6 +116,10 @@ function getActivityText(event) {
         return `${user} added note "${details.text}"`;
     }
 
+    if (event.kind === 'comment-added') {
+        return `${user} added comment "${details.text}"`;
+    }
+
     if (event.kind === 'history-used') {
         return `${user} used ${details.action === 'redo' ? 'redo' : 'undo'}`;
     }
@@ -122,6 +130,10 @@ function getActivityText(event) {
 
     if (event.kind === 'object-moved') {
         return `${user} moved ${details.objectName}`;
+    }
+
+    if (event.kind === 'object-resized') {
+        return `${user} resized ${details.objectName}`;
     }
 
     if (event.kind === 'object-duplicated') {
@@ -188,6 +200,7 @@ function highlightActivityObject(item) {
     }
 
     app.selectedObjectId = objectId;
+    app.selectedObjectIds = [objectId];
     window.whiteboardRender?.();
 }
 
