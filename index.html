@@ -60,244 +60,65 @@
 <div class="toolbar bottom">
   <div class="move-handler"></div>
   <div class="toolbar-content">
-    <div class="tool-group">
-    <button id="add" title="Add" aria-label="Add">
-      <svg width="800px" height="800px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <g id="Edit / Add_Plus_Square">
-          <path id="Vector"
-                d="M8 12H12M12 12H16M12 12V16M12 12V8M4 16.8002V7.2002C4 6.08009 4 5.51962 4.21799 5.0918C4.40973 4.71547 4.71547 4.40973 5.0918 4.21799C5.51962 4 6.08009 4 7.2002 4H16.8002C17.9203 4 18.4801 4 18.9079 4.21799C19.2842 4.40973 19.5905 4.71547 19.7822 5.0918C20.0002 5.51962 20.0002 6.07967 20.0002 7.19978V16.7998C20.0002 17.9199 20.0002 18.48 19.7822 18.9078C19.5905 19.2841 19.2842 19.5905 18.9079 19.7822C18.4805 20 17.9215 20 16.8036 20H7.19691C6.07899 20 5.5192 20 5.0918 19.7822C4.71547 19.5905 4.40973 19.2842 4.21799 18.9079C4 18.4801 4 17.9203 4 16.8002Z"
-                stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </g>
-      </svg>
-    </button>
-    <button class="tool" id="select" title="Select" aria-label="Select">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M5 3L17 14L11 15.5L8.5 21L5 3Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-      </svg>
-    </button>
-    <button class="tool" id="pan" title="Pan" aria-label="Pan">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M8 12V7.5C8 6.7 8.7 6 9.5 6S11 6.7 11 7.5V12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-        <path d="M11 12V5.5C11 4.7 11.7 4 12.5 4S14 4.7 14 5.5V12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-        <path d="M14 12V7.5C14 6.7 14.7 6 15.5 6S17 6.7 17 7.5V13" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-        <path d="M8 12L7.3 10.8C6.9 10.1 6 9.8 5.3 10.3C4.7 10.7 4.5 11.5 4.9 12.2L7.2 16.6C8.1 18.3 9.8 19.3 11.7 19.3H14.3C17.1 19.3 19 17.2 19 14.4V10C19 9.2 18.3 8.5 17.5 8.5S16 9.2 16 10" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
-    <button id="undo" title="Undo" aria-label="Undo">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M9 8H5V4" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M5.5 8.5C7.2 6.4 9.8 5 12.7 5C17.3 5 21 8.7 21 13.3S17.3 21 12.7 21C9.5 21 6.7 19.2 5.4 16.5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </button>
-    <button id="redo" title="Redo" aria-label="Redo">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M15 8H19V4" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M18.5 8.5C16.8 6.4 14.2 5 11.3 5C6.7 5 3 8.7 3 13.3S6.7 21 11.3 21C14.5 21 17.3 19.2 18.6 16.5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </button>
-    </div>
-    <div class="tool-group">
-    <button class="tool active" id="pen" title="Pen" aria-label="Pen">
-      <svg fill="var(--icon-color)" width="800px" height="800px" viewBox="0 0 32 32"
-           xmlns="http://www.w3.org/2000/svg">
-        <path
-            d="M 23.90625 3.96875 C 22.859375 3.96875 21.8125 4.375 21 5.1875 L 5.1875 21 L 5.125 21.3125 L 4.03125 26.8125 L 3.71875 28.28125 L 5.1875 27.96875 L 10.6875 26.875 L 11 26.8125 L 26.8125 11 C 28.4375 9.375 28.4375 6.8125 26.8125 5.1875 C 26 4.375 24.953125 3.96875 23.90625 3.96875 Z M 23.90625 5.875 C 24.410156 5.875 24.917969 6.105469 25.40625 6.59375 C 26.378906 7.566406 26.378906 8.621094 25.40625 9.59375 L 24.6875 10.28125 L 21.71875 7.3125 L 22.40625 6.59375 C 22.894531 6.105469 23.402344 5.875 23.90625 5.875 Z M 20.3125 8.71875 L 23.28125 11.6875 L 11.1875 23.78125 C 10.53125 22.5 9.5 21.46875 8.21875 20.8125 Z M 6.9375 22.4375 C 8.136719 22.921875 9.078125 23.863281 9.5625 25.0625 L 6.28125 25.71875 Z"/>
-      </svg>
-    </button>
-    <button class="tool" id="marker" title="Marker" aria-label="Marker">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M4 17L14.8 6.2C15.6 5.4 16.9 5.4 17.7 6.2L18.8 7.3C19.6 8.1 19.6 9.4 18.8 10.2L8 21H4V17Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M13.5 7.5L17.5 11.5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </button>
-    <button class="tool" id="pencil" title="Pencil" aria-label="Pencil">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M6 18.5L15.8 8.7C16.5 8 17.6 8 18.3 8.7C19 9.4 19 10.5 18.3 11.2L8.5 21H6V18.5Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M14.7 9.8L17.2 12.3" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-        <path d="M5 5C7.8 4.1 10 4.3 12 5.6" stroke="var(--icon-color)" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="1 3"/>
-      </svg>
-    </button>
-    <button class="tool" id="eraser" title="Eraser" aria-label="Eraser">
-      <svg width="800px" height="800px" viewBox="-2.17 0 80.129 80.129" xmlns="http://www.w3.org/2000/svg">
-        <g id="eraser" transform="translate(-1067.853 -238.567)">
-          <path
-              d="M1141.749,272.477a6.554,6.554,0,0,0,0-9.229l-22.779-22.779a6.544,6.544,0,0,0-9.225,0l-19.995,19.994,32.007,32.012Z"
-              fill="#f4f4f4"/>
-          <path
-              d="M1089.75,260.463l-19.992,19.99a6.543,6.543,0,0,0,0,9.23l22.779,22.774a6.538,6.538,0,0,0,9.228,0l19.992-19.982Z"
-              fill="#ff5245"/>
-          <path
-              d="M1101.759,312.464l1.1-1.1-32-32.009-1.106,1.1a6.543,6.543,0,0,0,.005,9.225l22.779,22.774A6.538,6.538,0,0,0,1101.759,312.464Z"
-              fill="#f43b37"/>
-        </g>
-      </svg>
-    </button>
-    <button class="tool" id="object-eraser" title="Erase object" aria-label="Erase object">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M5 15L13.5 6.5C14.3 5.7 15.7 5.7 16.5 6.5L18.5 8.5C19.3 9.3 19.3 10.7 18.5 11.5L11 19H6L5 15Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M12.5 7.5L17.5 12.5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-        <path d="M14 19H21" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </button>
-    <button id="clear" title="Clear" aria-label="Clear">
-      <svg width="800px" height="800px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M9 9L15 15" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round"/>
-        <path d="M15 9L9 15" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round"/>
-        <circle cx="12" cy="12" r="9" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round"/>
-      </svg>
-    </button>
-    <button class="tool" id="fill" title="Fill" aria-label="Fill">
-      <svg fill="var(--icon-color)" width="800px" height="800px" viewBox="0 0 32 32"
-           xmlns="http://www.w3.org/2000/svg">
-        <path
-            d="M 11.300781 3.3007812 L 9.9003906 4.6992188 L 11.699219 6.5 L 4.8007812 13.400391 C 3.6007812 14.600391 3.6007813 16.499219 4.8007812 17.699219 L 4.9003906 17.800781 L 11.199219 24.099609 C 12.399219 25.299609 14.3 25.299609 15.5 24.099609 L 23.099609 16.5 L 23.800781 15.800781 L 14.099609 6.0996094 L 13.300781 5.3007812 L 13.099609 5.0996094 L 11.300781 3.3007812 z M 13.099609 7.9003906 L 21 15.800781 L 18.800781 18 L 7.8984375 18 L 6.1992188 16.300781 C 5.7992187 15.900781 5.7992187 15.200781 6.1992188 14.800781 L 13.099609 7.9003906 z M 25 19.300781 L 24.199219 20.5 C 24.199219 20.5 23.699609 21.299219 23.099609 22.199219 C 22.799609 22.699219 22.600391 23.099609 22.400391 23.599609 C 22.200391 24.099609 22 24.4 22 25 C 22 26.6 23.4 28 25 28 C 26.6 28 28 26.6 28 25 C 28 24.4 27.799609 24 27.599609 23.5 C 27.399609 23 27.100391 22.499609 26.900391 22.099609 C 26.400391 21.199609 25.800781 20.400391 25.800781 20.400391 L 25 19.300781 z"/>
-      </svg>
-    </button>
+    <div class="tool-group primary-tools">
+      <button class="tool" id="select" title="Select" aria-label="Select"><svg viewBox="0 0 24 24" fill="none"><path d="M5 3L17 14L11 15.5L8.5 21L5 3Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/></svg></button>
+      <button class="tool" id="pan" title="Pan" aria-label="Pan"><svg viewBox="0 0 24 24" fill="none"><path d="M8 12V7.5C8 6.7 8.7 6 9.5 6S11 6.7 11 7.5V12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/><path d="M11 12V5.5C11 4.7 11.7 4 12.5 4S14 4.7 14 5.5V12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/><path d="M14 12V7.5C14 6.7 14.7 6 15.5 6S17 6.7 17 7.5V13" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/><path d="M8 12L7.3 10.8C6.9 10.1 6 9.8 5.3 10.3C4.7 10.7 4.5 11.5 4.9 12.2L7.2 16.6C8.1 18.3 9.8 19.3 11.7 19.3H14.3C17.1 19.3 19 17.2 19 14.4V10C19 9.2 18.3 8.5 17.5 8.5S16 9.2 16 10" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="tool active" id="pen" title="Pen" aria-label="Pen"><svg viewBox="0 0 24 24" fill="none"><path d="M5 19L15.5 8.5C16.3 7.7 17.6 7.7 18.3 8.5C19.1 9.3 19.1 10.6 18.3 11.3L7.8 21H5V19Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M14.5 9.5L17.5 12.5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <div class="line-width-preview" title="Stroke size" aria-label="Stroke size"><div class="preview"></div><div class="list"><div class="item" data-value="10"><div class="opt" style="--lineWidth: 10px"></div></div><div class="item active" data-value="15"><div class="opt" style="--lineWidth: 15px"></div></div><div class="item" data-value="20"><div class="opt" style="--lineWidth: 20px"></div></div><div class="item" data-value="25"><div class="opt" style="--lineWidth: 25px"></div></div><div class="item" data-value="35"><div class="opt" style="--lineWidth: 35px"></div></div></div></div>
+      <div class="color"><input type="color" id="fillColor" title="Color" aria-label="Color"></div>
+      <button id="undo" title="Undo" aria-label="Undo"><svg viewBox="0 0 24 24" fill="none"><path d="M9 8H5V4" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 8.5C7.2 6.4 9.8 5 12.7 5C17.3 5 21 8.7 21 13.3S17.3 21 12.7 21C9.5 21 6.7 19.2 5.4 16.5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <button id="redo" title="Redo" aria-label="Redo"><svg viewBox="0 0 24 24" fill="none"><path d="M15 8H19V4" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 8.5C16.8 6.4 14.2 5 11.3 5C6.7 5 3 8.7 3 13.3S6.7 21 11.3 21C14.5 21 17.3 19.2 18.6 16.5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
     </div>
 
-    <div class="tool-group">
-    <button class="tool" id="line" title="Line" aria-label="Line">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M5 19L19 5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </button>
-    <button class="tool" id="arrow" title="Arrow" aria-label="Arrow">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M5 19L18 6" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-        <path d="M10 6H18V14" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
-    <button class="tool" id="rectangle" title="Rectangle" aria-label="Rectangle">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M5 6H19V18H5V6Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-      </svg>
-    </button>
-    <button class="tool" id="ellipse" title="Ellipse" aria-label="Ellipse">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M4 12C4 8.7 7.6 6 12 6S20 8.7 20 12S16.4 18 12 18S4 15.3 4 12Z" stroke="var(--icon-color)" stroke-width="2"/>
-      </svg>
-    </button>
-    <button class="tool" id="diamond" title="Diamond" aria-label="Diamond">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M12 4L20 12L12 20L4 12L12 4Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-      </svg>
-    </button>
-    <button class="tool" id="polygon" title="Polygon" aria-label="Polygon">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M8 5H16L21 12L16 19H8L3 12L8 5Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-      </svg>
-    </button>
+    <div class="tool-menu">
+      <button class="tool-menu-trigger" title="Drawing tools" aria-label="Drawing tools"><svg viewBox="0 0 24 24" fill="none"><path d="M5 19L15.5 8.5C16.3 7.7 17.6 7.7 18.3 8.5C19.1 9.3 19.1 10.6 18.3 11.3L7.8 21H5V19Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M4 5C7 4 9.5 4.2 12 6" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 3"/></svg></button>
+      <div class="tool-popover"><div class="tool-group">
+        <button class="tool" id="marker" title="Marker" aria-label="Marker"><svg viewBox="0 0 24 24" fill="none"><path d="M4 17L14.8 6.2C15.6 5.4 16.9 5.4 17.7 6.2L18.8 7.3C19.6 8.1 19.6 9.4 18.8 10.2L8 21H4V17Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M13.5 7.5L17.5 11.5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button class="tool" id="pencil" title="Pencil" aria-label="Pencil"><svg viewBox="0 0 24 24" fill="none"><path d="M6 18.5L15.8 8.7C16.5 8 17.6 8 18.3 8.7C19 9.4 19 10.5 18.3 11.2L8.5 21H6V18.5Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M5 5C7.8 4.1 10 4.3 12 5.6" stroke="var(--icon-color)" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="1 3"/></svg></button>
+        <button class="tool" id="eraser" title="Eraser" aria-label="Eraser"><svg viewBox="0 0 24 24" fill="none"><path d="M5 15L13.5 6.5C14.3 5.7 15.7 5.7 16.5 6.5L18.5 8.5C19.3 9.3 19.3 10.7 18.5 11.5L11 19H6L5 15Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M12.5 7.5L17.5 12.5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button class="tool" id="object-eraser" title="Erase object" aria-label="Erase object"><svg viewBox="0 0 24 24" fill="none"><path d="M5 15L13.5 6.5C14.3 5.7 15.7 5.7 16.5 6.5L18.5 8.5C19.3 9.3 19.3 10.7 18.5 11.5L11 19H6L5 15Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M14 19H21" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button class="tool" id="fill" title="Fill" aria-label="Fill"><svg viewBox="0 0 24 24" fill="none"><path d="M7 11L12 6L18 12L13 17L7 11Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M18 17C18 17 20 19.2 20 20.5C20 21.3 19.3 22 18.5 22C17.7 22 17 21.3 17 20.5C17 19.2 18 17 18 17Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/></svg></button>
+      </div></div>
     </div>
 
-    <div class="tool-group">
-    <button class="tool text-tool" id="text" title="Text" aria-label="Text">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M6 5H18" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-        <path d="M12 5V19" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-        <path d="M9 19H15" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </button>
-    <button class="tool" id="sticky" title="Sticky note" aria-label="Sticky note">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M6 4H18V15L13 20H6V4Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M13 20V15H18" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-      </svg>
-    </button>
-    <button class="tool" id="callout" title="Callout" aria-label="Callout">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M5 5H19V15H13L9 20V15H5V5Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M8 9H16M8 12H13" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </button>
-    <button class="tool" id="list" title="Bulleted list" aria-label="Bulleted list">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M10 7H19M10 12H19M10 17H19" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-        <path d="M6 7H6.01M6 12H6.01M6 17H6.01" stroke="var(--icon-color)" stroke-width="3" stroke-linecap="round"/>
-      </svg>
-    </button>
-    <button class="tool" id="label" title="Label" aria-label="Label">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M5 8C5 6.9 5.9 6 7 6H14L20 12L14 18H7C5.9 18 5 17.1 5 16V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M8 12H13" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </button>
+    <div class="tool-menu">
+      <button class="tool-menu-trigger" title="Shapes" aria-label="Shapes"><svg viewBox="0 0 24 24" fill="none"><path d="M5 6H13V14H5V6Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M16 5L21 10L16 15L11 10L16 5Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/></svg></button>
+      <div class="tool-popover"><div class="tool-group">
+        <button class="tool" id="line" title="Line" aria-label="Line"><svg viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button class="tool" id="arrow" title="Arrow" aria-label="Arrow"><svg viewBox="0 0 24 24" fill="none"><path d="M5 19L18 6" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/><path d="M10 6H18V14" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="tool" id="rectangle" title="Rectangle" aria-label="Rectangle"><svg viewBox="0 0 24 24" fill="none"><path d="M5 6H19V18H5V6Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/></svg></button>
+        <button class="tool" id="ellipse" title="Ellipse" aria-label="Ellipse"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12C4 8.7 7.6 6 12 6S20 8.7 20 12S16.4 18 12 18S4 15.3 4 12Z" stroke="var(--icon-color)" stroke-width="2"/></svg></button>
+        <button class="tool" id="diamond" title="Diamond" aria-label="Diamond"><svg viewBox="0 0 24 24" fill="none"><path d="M12 4L20 12L12 20L4 12L12 4Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/></svg></button>
+        <button class="tool" id="polygon" title="Polygon" aria-label="Polygon"><svg viewBox="0 0 24 24" fill="none"><path d="M8 5H16L21 12L16 19H8L3 12L8 5Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/></svg></button>
+      </div></div>
     </div>
 
-    <div class="tool-group">
-    <button id="duplicate" title="Duplicate" aria-label="Duplicate">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M5 15H4V4H15V5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
-    <button id="bringForward" title="Bring forward" aria-label="Bring forward">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M5 15H4V4H15V5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M12 14V10M12 10L10 12M12 10L14 12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
-    <button id="sendBackward" title="Send backward" aria-label="Send backward">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M5 15H4V4H15V5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M12 10V14M12 14L10 12M12 14L14 12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
-    <button id="exportPng" title="Export PNG" aria-label="Export PNG">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M12 4V14M12 14L8 10M12 14L16 10" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M5 17V20H19V17" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
-    <button id="copyImage" title="Copy as image" aria-label="Copy as image">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M5 15H4V4H15V5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M11 15L13 13L15 15L17 12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
+    <div class="tool-menu">
+      <button class="tool-menu-trigger" title="Text tools" aria-label="Text tools"><svg viewBox="0 0 24 24" fill="none"><path d="M6 5H18" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/><path d="M12 5V19" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/><path d="M9 19H15" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <div class="tool-popover"><div class="tool-group">
+        <button class="tool text-tool" id="text" title="Text" aria-label="Text"><svg viewBox="0 0 24 24" fill="none"><path d="M6 5H18" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/><path d="M12 5V19" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/><path d="M9 19H15" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button class="tool" id="sticky" title="Sticky note" aria-label="Sticky note"><svg viewBox="0 0 24 24" fill="none"><path d="M6 4H18V15L13 20H6V4Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M13 20V15H18" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/></svg></button>
+        <button class="tool" id="callout" title="Callout" aria-label="Callout"><svg viewBox="0 0 24 24" fill="none"><path d="M5 5H19V15H13L9 20V15H5V5Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M8 9H16M8 12H13" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button class="tool" id="list" title="Bulleted list" aria-label="Bulleted list"><svg viewBox="0 0 24 24" fill="none"><path d="M10 7H19M10 12H19M10 17H19" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/><path d="M6 7H6.01M6 12H6.01M6 17H6.01" stroke="var(--icon-color)" stroke-width="3" stroke-linecap="round"/></svg></button>
+        <button class="tool" id="label" title="Label" aria-label="Label"><svg viewBox="0 0 24 24" fill="none"><path d="M5 8C5 6.9 5.9 6 7 6H14L20 12L14 18H7C5.9 18 5 17.1 5 16V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M8 12H13" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
+      </div></div>
     </div>
 
-    <div class="tool-group tool-settings">
-    <div class="line-width-preview">
-      <div class="preview"></div>
-
-      <div class="list">
-        <div class="item" data-value="10">
-          <div class="opt" style="--lineWidth: 10px"></div>
-        </div>
-        <div class="item active" data-value="15">
-          <div class="opt" style="--lineWidth: 15px"></div>
-        </div>
-        <div class="item" data-value="20">
-          <div class="opt" style="--lineWidth: 20px"></div>
-        </div>
-        <div class="item" data-value="25">
-          <div class="opt" style="--lineWidth: 25px"></div>
-        </div>
-        <div class="item" data-value="35">
-          <div class="opt" style="--lineWidth: 35px"></div>
-        </div>
-      </div>
+    <div class="tool-menu">
+      <button class="tool-menu-trigger" title="Edit actions" aria-label="Edit actions"><svg viewBox="0 0 24 24" fill="none"><path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M5 15H4V4H15V5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="tool-popover"><div class="tool-group">
+        <button id="duplicate" title="Duplicate" aria-label="Duplicate"><svg viewBox="0 0 24 24" fill="none"><path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M5 15H4V4H15V5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="bringForward" title="Bring forward" aria-label="Bring forward"><svg viewBox="0 0 24 24" fill="none"><path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M12 14V10M12 10L10 12M12 10L14 12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="sendBackward" title="Send backward" aria-label="Send backward"><svg viewBox="0 0 24 24" fill="none"><path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M12 10V14M12 14L10 12M12 14L14 12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="clear" title="Clear" aria-label="Clear"><svg viewBox="0 0 24 24" fill="none"><path d="M9 9L15 15M15 9L9 15" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="var(--icon-color)" stroke-width="2"/></svg></button>
+        <button id="exportPng" title="Export PNG" aria-label="Export PNG"><svg viewBox="0 0 24 24" fill="none"><path d="M12 4V14M12 14L8 10M12 14L16 10" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 17V20H19V17" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="copyImage" title="Copy as image" aria-label="Copy as image"><svg viewBox="0 0 24 24" fill="none"><path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M11 15L13 13L15 15L17 12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div></div>
     </div>
 
-    <div class="color">
-      <input type="color" id="fillColor" title="Color" aria-label="Color">
-    </div>
-    <label class="fill-tolerance" title="Fill tolerance" aria-label="Fill tolerance">
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M7 11L12 6L18 12L13 17L7 11Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M18 17C18 17 20 19.2 20 20.5C20 21.3 19.3 22 18.5 22C17.7 22 17 21.3 17 20.5C17 19.2 18 17 18 17Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
-      </svg>
-      <input type="range" id="fillTolerance" min="0" max="120" step="4" value="64">
-    </label>
-    </div>
   </div>
 </div>
+<div class="tool-tooltip" role="tooltip"></div>
 
 <div class="zoom-container">
   <button class="fit-board" type="button" title="Fit to screen" aria-label="Fit to screen">

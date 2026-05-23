@@ -31,13 +31,14 @@ import {activateMovingToolbar, deactivateMovingToolbar, hideToolbar, moveToolbar
 import {clampZoomOffset, getCanvasPoint, getCanvasTransform, hexToRgba} from './utils.js';
 
 const fillColorInput = document.getElementById('fillColor');
-const fillToleranceInput = document.getElementById('fillTolerance');
 const linePreview = document.querySelector('.line-width-preview');
 const remoteCursors = document.querySelector('.remote-cursors');
 const presence = document.querySelector('.presence');
 const shareButton = document.querySelector('.share-button');
 const fitBoardButton = document.querySelector('.fit-board');
 const zoomSelectionButton = document.querySelector('.zoom-selection');
+const toolTooltip = document.querySelector('.tool-tooltip');
+const toolMenuTriggers = document.querySelectorAll('.tool-menu-trigger');
 
 function addListener(element, events, listener) {
     events.forEach(ev => {
@@ -47,10 +48,143 @@ function addListener(element, events, listener) {
 
 function setActiveTool(button) {
     app.allTools.forEach(el => el.classList.remove('active'));
+    toolMenuTriggers.forEach(resetToolMenuTrigger);
     app.currentTool = button.getAttribute('id');
     button.classList.add('active');
+    updateActiveToolMenu(button);
     app.selectedObjectId = null;
     render();
+}
+
+function getTooltipText(element) {
+    return element?.dataset.tooltip || element?.getAttribute('aria-label') || '';
+}
+
+function setupTooltips() {
+    document.querySelectorAll('[title], .line-width-preview').forEach(element => {
+        const title = element.getAttribute('title');
+        const label = title || element.getAttribute('aria-label');
+
+        if (!label) {
+            return;
+        }
+
+        element.dataset.tooltip = label;
+        element.removeAttribute('title');
+    });
+}
+
+function positionTooltip(target) {
+    if (!toolTooltip) {
+        return;
+    }
+
+    const targetRect = target.getBoundingClientRect();
+    const tooltipRect = toolTooltip.getBoundingClientRect();
+    const gap = 10;
+    let left = targetRect.left + targetRect.width / 2;
+    let top = targetRect.top - tooltipRect.height / 2 - gap;
+
+    if (targetRect.top >= tooltipRect.height + gap + 8) {
+        top = targetRect.top - tooltipRect.height / 2 - gap;
+    } else if (window.innerHeight - targetRect.bottom >= tooltipRect.height + gap + 8) {
+        top = targetRect.bottom + tooltipRect.height / 2 + gap;
+    } else if (window.innerWidth - targetRect.right >= tooltipRect.width + gap + 8) {
+        left = targetRect.right + tooltipRect.width / 2 + gap;
+        top = targetRect.top + targetRect.height / 2;
+    } else if (targetRect.left >= tooltipRect.width + gap + 8) {
+        left = targetRect.left - tooltipRect.width / 2 - gap;
+        top = targetRect.top + targetRect.height / 2;
+    } else {
+        top = Math.min(window.innerHeight - tooltipRect.height / 2 - 8, targetRect.bottom + tooltipRect.height / 2 + gap);
+    }
+
+    left = Math.max(tooltipRect.width / 2 + 8, Math.min(window.innerWidth - tooltipRect.width / 2 - 8, left));
+    top = Math.max(tooltipRect.height / 2 + 8, Math.min(window.innerHeight - tooltipRect.height / 2 - 8, top));
+    toolTooltip.style.left = `${left}px`;
+    toolTooltip.style.top = `${top}px`;
+}
+
+function showTooltip(target) {
+    const text = getTooltipText(target);
+
+    if (!toolTooltip || !text) {
+        return;
+    }
+
+    toolTooltip.textContent = text;
+    toolTooltip.classList.add('visible');
+    positionTooltip(target);
+}
+
+function hideTooltip() {
+    toolTooltip?.classList.remove('visible');
+}
+
+function initTooltips() {
+    setupTooltips();
+
+    document.addEventListener('mouseover', event => {
+        const target = event.target.closest('[data-tooltip]');
+
+        if (target) {
+            showTooltip(target);
+        }
+    });
+    document.addEventListener('mouseout', event => {
+        const target = event.target.closest('[data-tooltip]');
+
+        if (target && !target.contains(event.relatedTarget)) {
+            hideTooltip();
+        }
+    });
+    document.addEventListener('focusin', event => {
+        const target = event.target.closest('[data-tooltip]');
+
+        if (target) {
+            showTooltip(target);
+        }
+    });
+    document.addEventListener('focusout', hideTooltip);
+    window.addEventListener('resize', hideTooltip);
+    window.addEventListener('scroll', hideTooltip, true);
+}
+
+function resetToolMenuTrigger(trigger) {
+    trigger.classList.remove('active');
+
+    if (!trigger.dataset.defaultIcon) {
+        trigger.dataset.defaultIcon = trigger.innerHTML;
+    }
+
+    if (!trigger.dataset.defaultLabel) {
+        trigger.dataset.defaultLabel = getTooltipText(trigger);
+    }
+
+    trigger.innerHTML = trigger.dataset.defaultIcon;
+    trigger.dataset.tooltip = trigger.dataset.defaultLabel;
+    trigger.setAttribute('aria-label', trigger.dataset.defaultLabel);
+}
+
+function initToolMenuTriggers() {
+    toolMenuTriggers.forEach(trigger => {
+        trigger.dataset.defaultIcon = trigger.innerHTML;
+        trigger.dataset.defaultLabel = getTooltipText(trigger);
+    });
+}
+
+function updateActiveToolMenu(button) {
+    const trigger = button.closest('.tool-menu')?.querySelector('.tool-menu-trigger');
+
+    if (!trigger) {
+        return;
+    }
+
+    const label = getTooltipText(button);
+    trigger.classList.add('active');
+    trigger.innerHTML = button.innerHTML;
+    trigger.dataset.tooltip = label;
+    trigger.setAttribute('aria-label', label);
 }
 
 function applyCanvasTransform() {
@@ -268,6 +402,8 @@ async function copyShareLink() {
 
 export function initEvents() {
     document.addEventListener('contextmenu', e => e.preventDefault());
+    initTooltips();
+    initToolMenuTriggers();
     window.updateRemoteCursors = updateRemoteCursors;
     const boardName = localStorage.getItem(`whiteboard:boardName:${app.roomId}`) || `Whiteboard / ${app.roomId.slice(0, 8)}`;
     document.querySelector('.board-title span:last-child').textContent = boardName;
@@ -281,9 +417,6 @@ export function initEvents() {
     });
     fillColorInput.addEventListener('input', () => {
         app.fillColor = fillColorInput.value;
-    });
-    fillToleranceInput.addEventListener('input', () => {
-        app.fillTolerance = parseInt(fillToleranceInput.value, 10);
     });
 
     linePreview.querySelector('.list').addEventListener('click', e => {
