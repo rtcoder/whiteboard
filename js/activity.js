@@ -9,9 +9,12 @@ const MAX_ACTIVITY_ITEMS = 200;
 const objectLabels = {
     arrow: 'arrow',
     bitmap: 'drawing',
+    callout: 'callout',
     diamond: 'diamond',
     ellipse: 'ellipse',
+    label: 'label',
     line: 'line',
+    list: 'list',
     marker: 'marker',
     path: 'drawing',
     pen: 'pen',
@@ -28,6 +31,8 @@ const activityIcons = {
     'history-used': '<path d="M8 8H5V5"/><path d="M5.5 8.5C7 6.4 9.5 5 12.3 5C16.6 5 20 8.4 20 12.7S16.6 20 12.3 20C9.4 20 6.9 18.4 5.7 16"/>',
     'object-deleted': '<path d="M7 8H17"/><path d="M10 8V6H14V8"/><path d="M9 11V17M12 11V17M15 11V17"/><path d="M8 8L9 20H15L16 8"/>',
     'object-moved': '<path d="M12 3V21M12 3L9 6M12 3L15 6M12 21L9 18M12 21L15 18"/><path d="M3 12H21M3 12L6 9M3 12L6 15M21 12L18 9M21 12L18 15"/>',
+    'object-duplicated': '<path d="M8 8H18V18H8V8Z"/><path d="M5 15H4V4H15V5"/>',
+    'object-layered': '<path d="M6 8L12 4L18 8L12 12L6 8Z"/><path d="M6 12L12 16L18 12"/><path d="M6 16L12 20L18 16"/>',
     'shape-added': '<path d="M6 6H18V18H6V6Z"/><path d="M12 9V15M9 12H15"/>',
     'sticky-added': '<path d="M7 5H17V14L12 19H7V5Z"/><path d="M12 19V14H17"/>',
     'text-added': '<path d="M6 6H18"/><path d="M12 6V19"/><path d="M9 19H15"/>',
@@ -99,7 +104,8 @@ function getActivityText(event) {
     }
 
     if (event.kind === 'text-added') {
-        return `${user} added text "${details.text}"`;
+        const label = getObjectLabel(details.objectType || 'text');
+        return `${user} added ${label} "${details.text}"`;
     }
 
     if (event.kind === 'sticky-added') {
@@ -116,6 +122,14 @@ function getActivityText(event) {
 
     if (event.kind === 'object-moved') {
         return `${user} moved ${details.objectName}`;
+    }
+
+    if (event.kind === 'object-duplicated') {
+        return `${user} duplicated ${details.objectName}`;
+    }
+
+    if (event.kind === 'object-layered') {
+        return `${user} sent ${details.objectName} ${details.direction === 'backward' ? 'backward' : 'forward'}`;
     }
 
     if (event.kind === 'board-cleared') {

@@ -233,23 +233,48 @@ function wrapText(text, maxChars) {
 
 function drawTextObject(object) {
     const isSticky = object.type === 'sticky';
+    const isCallout = object.type === 'callout';
+    const isList = object.type === 'list';
+    const isLabel = object.type === 'label';
 
-    if (isSticky) {
+    if (isSticky || isCallout || isList || isLabel) {
         app.ctx.fillStyle = object.fill;
-        app.ctx.strokeStyle = 'rgba(15, 23, 42, 0.14)';
+        app.ctx.strokeStyle = object.stroke || 'rgba(15, 23, 42, 0.14)';
         app.ctx.lineWidth = 2;
         app.ctx.beginPath();
-        app.ctx.roundRect(object.x, object.y, object.width, object.height, 14);
+        app.ctx.roundRect(object.x, object.y, object.width, object.height, isLabel ? 18 : 14);
         app.ctx.fill();
         app.ctx.stroke();
+
+        if (isCallout) {
+            app.ctx.beginPath();
+            app.ctx.moveTo(object.x + 46, object.y + object.height - 2);
+            app.ctx.lineTo(object.x + 28, object.y + object.height + 24);
+            app.ctx.lineTo(object.x + 86, object.y + object.height - 2);
+            app.ctx.closePath();
+            app.ctx.fill();
+            app.ctx.stroke();
+        }
     }
 
     app.ctx.fillStyle = object.color;
     app.ctx.font = `${object.fontWeight || 600} ${object.fontSize}px Inter, system-ui, sans-serif`;
     app.ctx.textBaseline = 'top';
 
-    const padding = isSticky ? 18 : 0;
-    const lines = wrapText(object.text, isSticky ? 18 : 32);
+    const padding = isSticky || isCallout || isList || isLabel ? (isLabel ? 12 : 18) : 0;
+
+    if (isList) {
+        object.items.forEach((item, index) => {
+            const lineY = object.y + padding + index * object.fontSize * 1.35;
+            app.ctx.beginPath();
+            app.ctx.arc(object.x + padding, lineY + object.fontSize * 0.45, 3.5, 0, Math.PI * 2);
+            app.ctx.fill();
+            app.ctx.fillText(item, object.x + padding + 14, lineY);
+        });
+        return;
+    }
+
+    const lines = wrapText(object.text, isSticky || isCallout ? 20 : isLabel ? 18 : 32);
     lines.forEach((line, index) => {
         app.ctx.fillText(line, object.x + padding, object.y + padding + index * object.fontSize * 1.25);
     });
@@ -278,7 +303,7 @@ function getBounds(object) {
         };
     }
 
-    if (object.type === 'text' || object.type === 'sticky') {
+    if (['text', 'sticky', 'callout', 'list', 'label'].includes(object.type)) {
         return {
             x: object.x,
             y: object.y,
@@ -297,6 +322,32 @@ function getBounds(object) {
     }
 
     return null;
+}
+
+export function getObjectBounds(object) {
+    return getBounds(object);
+}
+
+export function getObjectsBounds(objects = app.objects) {
+    const bounds = objects
+        .map(getBounds)
+        .filter(Boolean);
+
+    if (!bounds.length) {
+        return null;
+    }
+
+    const minX = Math.min(...bounds.map(bound => bound.x));
+    const minY = Math.min(...bounds.map(bound => bound.y));
+    const maxX = Math.max(...bounds.map(bound => bound.x + bound.width));
+    const maxY = Math.max(...bounds.map(bound => bound.y + bound.height));
+
+    return {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY,
+    };
 }
 
 function boundsOverlap(a, b, padding = 0) {
@@ -559,19 +610,56 @@ function createSvgTextObject(object) {
         return group;
     }
 
+    if (object.type === 'callout') {
+        const group = createSvgElement('g');
+        group.appendChild(createSvgElement('path', {
+            d: `M ${object.x + 14} ${object.y} H ${object.x + object.width - 14} Q ${object.x + object.width} ${object.y} ${object.x + object.width} ${object.y + 14} V ${object.y + object.height - 14} Q ${object.x + object.width} ${object.y + object.height} ${object.x + object.width - 14} ${object.y + object.height} H ${object.x + 86} L ${object.x + 28} ${object.y + object.height + 24} L ${object.x + 46} ${object.y + object.height} H ${object.x + 14} Q ${object.x} ${object.y + object.height} ${object.x} ${object.y + object.height - 14} V ${object.y + 14} Q ${object.x} ${object.y} ${object.x + 14} ${object.y} Z`,
+            fill: object.fill,
+            stroke: object.stroke || 'rgba(15, 23, 42, 0.14)',
+            'stroke-width': 2,
+        }));
+        createSvgTextLines(object, group, object.x, object.y, 20, 18);
+        return group;
+    }
+
     const group = createSvgElement('g');
     group.appendChild(createSvgElement('rect', {
         x: object.x,
         y: object.y,
         width: object.width,
         height: object.height,
-        rx: 14,
-        ry: 14,
+        rx: object.type === 'label' ? 18 : 14,
+        ry: object.type === 'label' ? 18 : 14,
         fill: object.fill,
-        stroke: 'rgba(15, 23, 42, 0.14)',
+        stroke: object.stroke || 'rgba(15, 23, 42, 0.14)',
         'stroke-width': 2,
     }));
-    createSvgTextLines(object, group, object.x, object.y, 18, 18);
+
+    if (object.type === 'list') {
+        object.items.forEach((item, index) => {
+            const lineY = object.y + 18 + index * object.fontSize * 1.35;
+            group.appendChild(createSvgElement('circle', {
+                cx: object.x + 18,
+                cy: lineY + object.fontSize * 0.45,
+                r: 3.5,
+                fill: object.color,
+            }));
+            const text = createSvgElement('text', {
+                x: object.x + 32,
+                y: lineY,
+                fill: object.color,
+                'font-size': object.fontSize,
+                'font-family': 'Inter, system-ui, sans-serif',
+                'font-weight': object.fontWeight || 600,
+                'dominant-baseline': 'text-before-edge',
+            });
+            text.textContent = item;
+            group.appendChild(text);
+        });
+        return group;
+    }
+
+    createSvgTextLines(object, group, object.x, object.y, object.type === 'label' ? 18 : 18, object.type === 'label' ? 12 : 18);
     return group;
 }
 
@@ -615,7 +703,7 @@ function appendSvgObject(object, parent = app.svg) {
         element = createSvgPath(object);
     } else if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'].includes(object.type)) {
         element = createSvgShape(object);
-    } else if (object.type === 'text' || object.type === 'sticky') {
+    } else if (['text', 'sticky', 'callout', 'list', 'label'].includes(object.type)) {
         element = createSvgTextObject(object);
     }
 
@@ -689,7 +777,7 @@ export function render(showSelection = true) {
             drawPath(object);
         } else if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'].includes(object.type)) {
             drawShape(object);
-        } else if (object.type === 'text' || object.type === 'sticky') {
+        } else if (['text', 'sticky', 'callout', 'list', 'label'].includes(object.type)) {
             drawTextObject(object);
         }
     }
@@ -777,6 +865,64 @@ export function createText(point, text) {
     };
 }
 
+export function createCallout(point, text) {
+    return {
+        id: createId('callout'),
+        type: 'callout',
+        x: point.x,
+        y: point.y,
+        width: 280,
+        height: 112,
+        fill: '#e0f2fe',
+        stroke: '#38bdf8',
+        color: '#0c4a6e',
+        fontSize: 19,
+        fontWeight: 650,
+        text,
+    };
+}
+
+export function createList(point, text) {
+    const items = text
+        .split(/\n|,/)
+        .map(item => item.trim())
+        .filter(Boolean)
+        .slice(0, 8);
+
+    return {
+        id: createId('list'),
+        type: 'list',
+        x: point.x,
+        y: point.y,
+        width: 280,
+        height: Math.max(92, 36 + items.length * 26),
+        fill: '#f8fafc',
+        stroke: '#cbd5e1',
+        color: '#0f172a',
+        fontSize: 18,
+        fontWeight: 600,
+        text: items.join(', '),
+        items,
+    };
+}
+
+export function createLabel(point, text) {
+    return {
+        id: createId('label'),
+        type: 'label',
+        x: point.x,
+        y: point.y,
+        width: Math.max(96, Math.min(260, text.length * 10 + 28)),
+        height: 38,
+        fill: '#ffffff',
+        stroke: '#94a3b8',
+        color: '#334155',
+        fontSize: 16,
+        fontWeight: 700,
+        text,
+    };
+}
+
 export function createSticky(point, text) {
     return {
         id: createId('sticky'),
@@ -791,6 +937,127 @@ export function createSticky(point, text) {
         fontWeight: 650,
         text,
     };
+}
+
+export function duplicateObject(id) {
+    const object = app.objects.find(item => item.id === id);
+
+    if (!object) {
+        return null;
+    }
+
+    saveHistory();
+    const duplicate = cloneObject(object);
+    duplicate.id = createId(object.type);
+    moveSingleObject(duplicate, 32, 32);
+    app.objects.push(duplicate);
+    app.selectedObjectId = duplicate.id;
+    render();
+    broadcastBoardState();
+
+    return duplicate;
+}
+
+export function moveObjectLayer(id, direction) {
+    const index = app.objects.findIndex(object => object.id === id);
+
+    if (index === -1) {
+        return null;
+    }
+
+    const targetIndex = direction === 'forward' ? Math.min(app.objects.length - 1, index + 1) : Math.max(0, index - 1);
+
+    if (targetIndex === index) {
+        return null;
+    }
+
+    saveHistory();
+    const [object] = app.objects.splice(index, 1);
+    app.objects.splice(targetIndex, 0, object);
+    render();
+    broadcastBoardState();
+
+    return object;
+}
+
+function getExportBounds() {
+    const bounds = getObjectsBounds();
+    const padding = 48;
+
+    if (!bounds) {
+        return {
+            x: 0,
+            y: 0,
+            width: Math.min(app.canvas.width, 1600),
+            height: Math.min(app.canvas.height, 1000),
+        };
+    }
+
+    return {
+        x: Math.max(0, Math.floor(bounds.x - padding)),
+        y: Math.max(0, Math.floor(bounds.y - padding)),
+        width: Math.ceil(bounds.width + padding * 2),
+        height: Math.ceil(bounds.height + padding * 2),
+    };
+}
+
+function createExportCanvas() {
+    render(false);
+    const bounds = getExportBounds();
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.min(bounds.width, app.canvas.width - bounds.x);
+    canvas.height = Math.min(bounds.height, app.canvas.height - bounds.y);
+    const context = canvas.getContext('2d');
+    context.fillStyle = 'white';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(
+        app.canvas,
+        bounds.x,
+        bounds.y,
+        canvas.width,
+        canvas.height,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+    );
+    render();
+    return canvas;
+}
+
+function canvasToBlob(canvas) {
+    return new Promise(resolve => {
+        canvas.toBlob(resolve, 'image/png');
+    });
+}
+
+export async function exportBoardPng() {
+    const canvas = createExportCanvas();
+    const url = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `whiteboard-${app.roomId || 'board'}.png`;
+    link.click();
+}
+
+export async function copyBoardImage() {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+        return false;
+    }
+
+    const canvas = createExportCanvas();
+    const blob = await canvasToBlob(canvas);
+
+    if (!blob) {
+        return false;
+    }
+
+    await navigator.clipboard.write([
+        new ClipboardItem({
+            [blob.type]: blob,
+        }),
+    ]);
+    return true;
 }
 
 function moveSingleObject(object, dx, dy) {

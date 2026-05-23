@@ -5,7 +5,7 @@
     z-index: 2;
     display: flex;
     align-items: center;
-    width: 116px;
+    width: auto;
     height: 42px;
     border: 1px solid var(--border);
     border-radius: 14px;
@@ -15,6 +15,7 @@
     box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
     backdrop-filter: blur(18px);
 
+    button,
     .minus,
     .plus,
     .value {
@@ -23,11 +24,15 @@
         justify-content: center;
     }
 
+    button,
     .minus,
     .plus {
         width: 34px;
         height: 100%;
         flex: 0 0 34px;
+        border: 0;
+        background: transparent;
+        --icon-color: var(--muted);
         cursor: pointer;
         transition: background 0.15s ease;
 
@@ -47,12 +52,12 @@
         }
 
         & path {
-            stroke: var(--muted);
+            stroke: var(--icon-color);
         }
     }
 
     .value {
-        width: 100%;
+        width: 48px;
         font-size: 13px;
         font-weight: 750;
         cursor: default;

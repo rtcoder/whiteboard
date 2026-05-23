@@ -206,6 +206,60 @@
         <path d="M13 20V15H18" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
       </svg>
     </button>
+    <button class="tool" id="callout" title="Callout" aria-label="Callout">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M5 5H19V15H13L9 20V15H5V5Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M8 9H16M8 12H13" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <button class="tool" id="list" title="Bulleted list" aria-label="Bulleted list">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M10 7H19M10 12H19M10 17H19" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
+        <path d="M6 7H6.01M6 12H6.01M6 17H6.01" stroke="var(--icon-color)" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <button class="tool" id="label" title="Label" aria-label="Label">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M5 8C5 6.9 5.9 6 7 6H14L20 12L14 18H7C5.9 18 5 17.1 5 16V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M8 12H13" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+    </div>
+
+    <div class="tool-group">
+    <button id="duplicate" title="Duplicate" aria-label="Duplicate">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M5 15H4V4H15V5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button id="bringForward" title="Bring forward" aria-label="Bring forward">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M5 15H4V4H15V5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 14V10M12 10L10 12M12 10L14 12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button id="sendBackward" title="Send backward" aria-label="Send backward">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M5 15H4V4H15V5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 10V14M12 14L10 12M12 14L14 12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button id="exportPng" title="Export PNG" aria-label="Export PNG">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M12 4V14M12 14L8 10M12 14L16 10" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M5 17V20H19V17" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button id="copyImage" title="Copy as image" aria-label="Copy as image">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M8 8H18V18H8V8Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M5 15H4V4H15V5" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M11 15L13 13L15 15L17 12" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
     </div>
 
     <div class="tool-group tool-settings">
@@ -246,6 +300,18 @@
 </div>
 
 <div class="zoom-container">
+  <button class="fit-board" type="button" title="Fit to screen" aria-label="Fit to screen">
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M8 4H4V8M16 4H20V8M20 16V20H16M8 20H4V16" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M9 9H15V15H9V9Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/>
+    </svg>
+  </button>
+  <button class="zoom-selection" type="button" title="Zoom to selection" aria-label="Zoom to selection">
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M5 5H15V15H5V5Z" stroke="var(--icon-color)" stroke-width="2" stroke-dasharray="3 3"/>
+      <path d="M14 14L20 20" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </button>
   <div class="minus disabled">
     <svg width="800px" height="800px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M6 12L18 12" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>

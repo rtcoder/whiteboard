@@ -1,15 +1,24 @@
 import {moveCursor} from './cursor.js';
 import {
     clear,
+    createCallout,
+    createLabel,
+    createList,
     createPath,
     createShape,
     createSticky,
     createText,
     deleteObjectById,
+    duplicateObject,
+    exportBoardPng,
     draw,
     findObjectAt,
     floodFill,
+    getObjectBounds,
+    getObjectsBounds,
     moveObject,
+    moveObjectLayer,
+    copyBoardImage,
     redo,
     render,
     saveHistory,
@@ -27,6 +36,8 @@ const linePreview = document.querySelector('.line-width-preview');
 const remoteCursors = document.querySelector('.remote-cursors');
 const presence = document.querySelector('.presence');
 const shareButton = document.querySelector('.share-button');
+const fitBoardButton = document.querySelector('.fit-board');
+const zoomSelectionButton = document.querySelector('.zoom-selection');
 
 function addListener(element, events, listener) {
     events.forEach(ev => {
@@ -47,6 +58,30 @@ function applyCanvasTransform() {
     app.canvas.style.transform = getCanvasTransform();
     app.svg.style.transform = getCanvasTransform();
     updateRemoteCursors();
+}
+
+function setZoomValue(scale) {
+    const maxScale = app.zoom._steps[app.zoom._steps.length - 1];
+    const clampedScale = Math.max(app.zoom._steps[0], Math.min(maxScale, scale));
+    app.zoom.scale = Math.round(clampedScale * 100) / 100;
+    document.querySelector('.zoom-container .value').textContent = `${Math.round(app.zoom.scale * 100)}%`;
+    document.body.style.setProperty('--scale', app.zoom.scale);
+}
+
+function fitBoundsToScreen(bounds) {
+    if (!bounds || !bounds.width || !bounds.height) {
+        return;
+    }
+
+    const padding = 96;
+    const availableWidth = Math.max(240, window.innerWidth - padding);
+    const availableHeight = Math.max(240, window.innerHeight - padding);
+    const scale = Math.min(1, availableWidth / bounds.width, availableHeight / bounds.height);
+
+    setZoomValue(scale);
+    app.zoom.offsetX = window.innerWidth / 2 / app.zoom.scale - (bounds.x + bounds.width / 2);
+    app.zoom.offsetY = window.innerHeight / 2 / app.zoom.scale - (bounds.y + bounds.height / 2);
+    applyCanvasTransform();
 }
 
 function startPath(point) {
@@ -103,13 +138,27 @@ function finishDraft() {
 }
 
 function addTextObject(point, type) {
-    const text = window.prompt(type === 'sticky' ? 'Note content' : 'Text');
+    const promptLabel = {
+        callout: 'Callout text',
+        label: 'Label text',
+        list: 'List items, separated by commas',
+        sticky: 'Note content',
+        text: 'Text',
+    }[type] || 'Text';
+    const text = window.prompt(promptLabel);
 
-    if (!text) {
+    if (!text?.trim()) {
         return;
     }
 
-    const object = type === 'sticky' ? createSticky(point, text) : createText(point, text);
+    const objectFactories = {
+        callout: createCallout,
+        label: createLabel,
+        list: createList,
+        sticky: createSticky,
+        text: createText,
+    };
+    const object = (objectFactories[type] || createText)(point, text.trim());
     saveHistory();
     app.objects.push(object);
     app.selectedObjectId = object.id;
@@ -117,6 +166,7 @@ function addTextObject(point, type) {
     broadcastBoardState();
     broadcastActivity(type === 'sticky' ? 'sticky-added' : 'text-added', {
         objectId: object.id,
+        objectType: object.type,
         text,
     });
 }
@@ -222,6 +272,13 @@ export function initEvents() {
     const boardName = localStorage.getItem(`whiteboard:boardName:${app.roomId}`) || `Whiteboard / ${app.roomId.slice(0, 8)}`;
     document.querySelector('.board-title span:last-child').textContent = boardName;
     shareButton.addEventListener('click', copyShareLink);
+    fitBoardButton.addEventListener('click', () => {
+        fitBoundsToScreen(getObjectsBounds() || {x: 0, y: 0, width: app.canvas.width, height: app.canvas.height});
+    });
+    zoomSelectionButton.addEventListener('click', () => {
+        const selectedObject = app.objects.find(object => object.id === app.selectedObjectId);
+        fitBoundsToScreen(getObjectBounds(selectedObject));
+    });
     fillColorInput.addEventListener('input', () => {
         app.fillColor = fillColorInput.value;
     });
@@ -278,38 +335,73 @@ export function initEvents() {
                 }
                 return;
             }
+
+            if (toolbarButton.id === 'duplicate') {
+                const duplicate = duplicateObject(app.selectedObjectId);
+
+                if (duplicate) {
+                    broadcastActivity('object-duplicated', {
+                        objectId: duplicate.id,
+                        objectName: getObjectName(duplicate),
+                    });
+                }
+                return;
+            }
+
+            if (toolbarButton.id === 'bringForward' || toolbarButton.id === 'sendBackward') {
+                const direction = toolbarButton.id === 'bringForward' ? 'forward' : 'backward';
+                const object = moveObjectLayer(app.selectedObjectId, direction);
+
+                if (object) {
+                    broadcastActivity('object-layered', {
+                        direction,
+                        objectId: object.id,
+                        objectName: getObjectName(object),
+                    });
+                }
+                return;
+            }
+
+            if (toolbarButton.id === 'exportPng') {
+                exportBoardPng();
+                return;
+            }
+
+            if (toolbarButton.id === 'copyImage') {
+                copyBoardImage().catch(() => false);
+                return;
+            }
         }
 
         if (zoomButton) {
-            const currentZoomIndex = app.zoom._steps.findIndex(v => v === app.zoom.scale);
+            const currentZoomIndex = app.zoom._steps.findIndex(v => v >= app.zoom.scale);
+            const normalizedZoomIndex = currentZoomIndex === -1 ? app.zoom._steps.length - 1 : currentZoomIndex;
             document.querySelectorAll('.zoom-container .minus, .zoom-container .plus')
                 .forEach(el => el.classList.remove('disabled'));
 
             let indexModifier = 0;
 
             if (zoomButton.matches('.minus')) {
-                if (currentZoomIndex <= 1) {
+                if (normalizedZoomIndex <= 1) {
                     zoomButton.classList.add('disabled');
                 }
-                if (currentZoomIndex === 0) {
+                if (normalizedZoomIndex === 0) {
                     return;
                 }
                 indexModifier = -1;
             }
             if (zoomButton.matches('.plus')) {
-                if (currentZoomIndex >= app.zoom._steps.length - 2) {
+                if (normalizedZoomIndex >= app.zoom._steps.length - 2) {
                     zoomButton.classList.add('disabled');
                 }
-                if (currentZoomIndex === app.zoom._steps.length - 1) {
+                if (normalizedZoomIndex === app.zoom._steps.length - 1) {
                     return;
                 }
 
                 indexModifier = 1;
             }
-            app.zoom.scale = app.zoom._steps[currentZoomIndex + indexModifier];
+            setZoomValue(app.zoom._steps[normalizedZoomIndex + indexModifier]);
             applyCanvasTransform();
-            document.querySelector('.zoom-container .value').innerHTML = app.zoom.scale * 100 + '%';
-            document.body.style.setProperty('--scale', app.zoom.scale);
         }
     });
 
@@ -373,7 +465,7 @@ export function initEvents() {
             return;
         }
 
-        if (app.currentTool === 'text' || app.currentTool === 'sticky') {
+        if (['text', 'sticky', 'callout', 'list', 'label'].includes(app.currentTool)) {
             app.isDrawing = false;
             showToolbar();
             addTextObject(point, app.currentTool);
