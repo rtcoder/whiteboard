@@ -36,6 +36,7 @@ const activityIcons = {
     'object-deleted': '<path d="M7 8H17"/><path d="M10 8V6H14V8"/><path d="M9 11V17M12 11V17M15 11V17"/><path d="M8 8L9 20H15L16 8"/>',
     'object-moved': '<path d="M12 3V21M12 3L9 6M12 3L15 6M12 21L9 18M12 21L15 18"/><path d="M3 12H21M3 12L6 9M3 12L6 15M21 12L18 9M21 12L18 15"/>',
     'object-resized': '<path d="M5 9V5H9"/><path d="M19 15V19H15"/><path d="M5 5L11 11"/><path d="M19 19L13 13"/>',
+    'object-styled': '<path d="M5 19L16.5 7.5C17.3 6.7 18.6 6.7 19.3 7.5C20.1 8.3 20.1 9.6 19.3 10.3L7.8 21H5V19Z"/><path d="M6 6H10V10H6V6Z"/>',
     'object-duplicated': '<path d="M8 8H18V18H8V8Z"/><path d="M5 15H4V4H15V5"/>',
     'object-layered': '<path d="M6 8L12 4L18 8L12 12L6 8Z"/><path d="M6 12L12 16L18 12"/><path d="M6 16L12 20L18 16"/>',
     'shape-added': '<path d="M6 6H18V18H6V6Z"/><path d="M12 9V15M9 12H15"/>',
@@ -148,6 +149,10 @@ function getActivityText(event) {
 
     if (event.kind === 'object-rotated') {
         return `${user} rotated ${details.objectName}`;
+    }
+
+    if (event.kind === 'object-styled') {
+        return `${user} updated ${details.objectName}`;
     }
 
     if (event.kind === 'objects-grouped') {

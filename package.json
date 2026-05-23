@@ -1,5 +1,6 @@
 {
-    "scripts":{
-        "start": "node server.js"
+    "scripts": {
+        "start": "node server.js",
+        "test": "node scripts/smoke-tests.mjs"
     }
 }

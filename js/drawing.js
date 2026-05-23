@@ -1055,16 +1055,52 @@ function createSvgImageObject(object) {
 
 function createSvgConnector(object) {
     const endpoints = getConnectorEndpoints(object);
-    const midX = (endpoints.from.x + endpoints.to.x) / 2;
+    const horizontalDistance = Math.abs(endpoints.to.x - endpoints.from.x);
+    const verticalDistance = Math.abs(endpoints.to.y - endpoints.from.y);
+    const routePoints = object.connectorStyle === 'straight' || horizontalDistance < 12 || verticalDistance < 12
+        ? [endpoints.from, endpoints.to]
+        : [
+            endpoints.from,
+            {x: endpoints.from.x + (endpoints.to.x - endpoints.from.x) / 2, y: endpoints.from.y},
+            {x: endpoints.from.x + (endpoints.to.x - endpoints.from.x) / 2, y: endpoints.to.y},
+            endpoints.to,
+        ];
+    const pathData = routePoints
+        .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+        .join(' ');
+    const group = createSvgElement('g');
 
-    return createSvgElement('path', {
-        d: `M ${endpoints.from.x} ${endpoints.from.y} C ${midX} ${endpoints.from.y}, ${midX} ${endpoints.to.y}, ${endpoints.to.x} ${endpoints.to.y}`,
+    group.appendChild(createSvgElement('path', {
+        d: pathData,
         fill: 'none',
         stroke: object.color,
         'stroke-width': object.lineWidth || 3,
         'stroke-linecap': 'round',
         'stroke-linejoin': 'round',
-    });
+    }));
+
+    if (object.endMarker !== 'none') {
+        const previousPoint = routePoints[routePoints.length - 2] || endpoints.from;
+        const angle = Math.atan2(endpoints.to.y - previousPoint.y, endpoints.to.x - previousPoint.x);
+        const size = Math.max(12, (object.lineWidth || 3) * 3.2);
+        const arrowPoints = [
+            endpoints.to,
+            {
+                x: endpoints.to.x - size * Math.cos(angle - Math.PI / 6),
+                y: endpoints.to.y - size * Math.sin(angle - Math.PI / 6),
+            },
+            {
+                x: endpoints.to.x - size * Math.cos(angle + Math.PI / 6),
+                y: endpoints.to.y - size * Math.sin(angle + Math.PI / 6),
+            },
+        ];
+        group.appendChild(createSvgElement('polygon', {
+            points: arrowPoints.map(point => `${point.x},${point.y}`).join(' '),
+            fill: object.color,
+        }));
+    }
+
+    return group;
 }
 
 function createSvgSelection(object) {
@@ -1393,6 +1429,8 @@ export function createConnector(fromObject, toObject, color = app.fillColor) {
         y2: to.y,
         color,
         lineWidth: Math.max(3, Math.round(app.lineWidth * 0.45)),
+        connectorStyle: 'orthogonal',
+        endMarker: 'arrow',
     };
 }
 

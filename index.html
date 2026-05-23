@@ -75,6 +75,42 @@
   <ol class="snapshot-list"></ol>
 </aside>
 
+<aside class="properties-panel" id="propertiesPanel" aria-label="Object properties">
+  <div class="properties-header">
+    <div>
+      <strong>Properties</strong>
+      <span class="properties-summary">No selection</span>
+    </div>
+    <button class="properties-close activity-close" type="button" aria-label="Close properties">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M6 6L18 18M18 6L6 18" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+  <div class="properties-content">
+    <label>
+      <span>Stroke</span>
+      <input type="color" id="propertyStroke">
+    </label>
+    <label>
+      <span>Fill</span>
+      <input type="color" id="propertyFill">
+    </label>
+    <label>
+      <span>Stroke size</span>
+      <input type="number" id="propertyLineWidth" min="1" max="80" step="1">
+    </label>
+    <label>
+      <span>Rotation</span>
+      <input type="number" id="propertyRotation" min="-360" max="360" step="1">
+    </label>
+    <label class="property-checkbox">
+      <input type="checkbox" id="propertyLocked">
+      <span>Locked</span>
+    </label>
+  </div>
+</aside>
+
 <div class="toolbar bottom">
   <div class="move-handler"></div>
   <div class="toolbar-content">
@@ -157,6 +193,7 @@
   </div>
 </div>
 <div class="tool-tooltip" role="tooltip"></div>
+<div class="status-toast" role="status" aria-live="polite"></div>
 
 <div class="zoom-container">
   <button class="fit-board" type="button" title="Fit to screen" aria-label="Fit to screen">

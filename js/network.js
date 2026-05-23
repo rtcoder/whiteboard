@@ -1,5 +1,6 @@
 import {app} from './main.js';
 import {addActivityEntries, refreshActivityLog} from './activity.js';
+import {CURRENT_SCHEMA_VERSION, migrateObject, migrateObjects} from './schema.js';
 import {getUserAvatar} from './utils.js';
 
 let socket = null;
@@ -51,12 +52,17 @@ function base64ToUint8(base64) {
 }
 
 function serializeObject(object) {
+    const withSchema = {
+        ...object,
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+    };
+
     if (object.type !== 'bitmap') {
-        return object;
+        return withSchema;
     }
 
     return {
-        ...object,
+        ...withSchema,
         imageData: {
             width: object.imageData.width,
             height: object.imageData.height,
@@ -83,13 +89,15 @@ function loadLocalBoardState() {
     }
 
     try {
-        return JSON.parse(localStorage.getItem(getRoomStorageKey()) || '[]');
+        return migrateObjects(JSON.parse(localStorage.getItem(getRoomStorageKey()) || '[]'));
     } catch {
         return [];
     }
 }
 
 function deserializeObject(object) {
+    object = migrateObject(object);
+
     if (object.type !== 'bitmap') {
         return object;
     }
@@ -376,7 +384,7 @@ export function initNetwork({render, onPeersChange}) {
             refreshLocalUserAvatar();
             currentRevision = message.revision || 0;
             addActivityEntries(message.activityLog || []);
-            const boardState = message.boardState?.length ? message.boardState : loadLocalBoardState();
+            const boardState = message.boardState?.length ? migrateObjects(message.boardState) : loadLocalBoardState();
             logNetwork('apply init state', {
                 revision: currentRevision,
                 serverObjects: message.boardState?.length || 0,
@@ -408,14 +416,16 @@ export function initNetwork({render, onPeersChange}) {
 
         if (message.type === 'board-state') {
             currentRevision = Math.max(currentRevision, message.revision || 0);
-            saveLocalBoardState(message.objects || []);
+            const incomingObjects = migrateObjects(message.objects || []);
+            saveLocalBoardState(incomingObjects);
             suppressBroadcast = true;
-            app.objects = (message.objects || []).map(deserializeObject);
+            app.objects = incomingObjects.map(deserializeObject);
             app.selectedObjectId = null;
             app.selectedObjectIds = [];
             suppressBroadcast = false;
-            syncLocalObjectCache(message.objects || []);
+            syncLocalObjectCache(incomingObjects);
             renderBoard();
+            window.whiteboardUpdateSelectionUi?.();
             refreshActivityLog();
             logNetwork('applied remote board-state', {
                 revision: currentRevision,
@@ -436,6 +446,7 @@ export function initNetwork({render, onPeersChange}) {
             saveLocalBoardState(objects);
             syncLocalObjectCache(objects);
             renderBoard();
+            window.whiteboardUpdateSelectionUi?.();
             refreshActivityLog();
             logNetwork('applied remote board-operation', {
                 revision: currentRevision,
@@ -471,6 +482,7 @@ export function initNetwork({render, onPeersChange}) {
             collaborator.selectedObjectIds = message.objectIds || [];
             app.collaborators.set(message.clientId, collaborator);
             renderBoard();
+            window.whiteboardUpdateSelectionUi?.();
             updatePeers();
             return;
         }

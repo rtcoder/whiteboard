@@ -64,7 +64,87 @@ const laserLayer = document.querySelector('.laser-layer');
 const snapshotPanel = document.querySelector('.snapshot-panel');
 const snapshotList = document.querySelector('.snapshot-list');
 const snapshotClose = document.querySelector('.snapshot-close');
+const propertiesClose = document.querySelector('.properties-close');
+const propertiesSummary = document.querySelector('.properties-summary');
+const propertyStroke = document.getElementById('propertyStroke');
+const propertyFill = document.getElementById('propertyFill');
+const propertyLineWidth = document.getElementById('propertyLineWidth');
+const propertyRotation = document.getElementById('propertyRotation');
+const propertyLocked = document.getElementById('propertyLocked');
+const statusToast = document.querySelector('.status-toast');
 const selectionActionIds = ['duplicate', 'group', 'ungroup', 'lock', 'unlock', 'bringForward', 'sendBackward'];
+let statusTimer = null;
+let isUpdatingProperties = false;
+
+function showStatus(message) {
+    if (!statusToast) {
+        return;
+    }
+
+    statusToast.textContent = message;
+    statusToast.classList.add('visible');
+    window.clearTimeout(statusTimer);
+    statusTimer = window.setTimeout(() => {
+        statusToast.classList.remove('visible');
+    }, 1800);
+}
+
+function getPeerEditingObjectIds() {
+    const objectIds = new Set();
+
+    app.collaborators.forEach(user => {
+        (user.selectedObjectIds || []).forEach(id => objectIds.add(id));
+    });
+
+    return objectIds;
+}
+
+function getPeerEditingSelectedObjects(objects = getSelectedObjects()) {
+    const selectedIds = new Set(objects.map(object => object.id));
+    const busyIds = getPeerEditingObjectIds();
+
+    return [...selectedIds].some(id => busyIds.has(id));
+}
+
+function canEditObjects(objects, message = 'Someone else is editing this object') {
+    if (!objects.length) {
+        return false;
+    }
+
+    if (getPeerEditingSelectedObjects(objects)) {
+        showStatus(message);
+        return false;
+    }
+
+    return true;
+}
+
+function normalizeColorForInput(value, fallback = '#000000') {
+    if (!value || value === 'transparent' || value === 'none') {
+        return fallback;
+    }
+
+    const probe = document.createElement('canvas').getContext('2d');
+    probe.fillStyle = fallback;
+    probe.fillStyle = value;
+    const color = probe.fillStyle;
+
+    if (/^#[0-9a-f]{6}$/i.test(color)) {
+        return color;
+    }
+
+    if (/^#[0-9a-f]{3}$/i.test(color)) {
+        return `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`;
+    }
+
+    const rgb = color.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+
+    if (!rgb) {
+        return fallback;
+    }
+
+    return `#${[rgb[1], rgb[2], rgb[3]].map(part => Number(part).toString(16).padStart(2, '0')).join('')}`;
+}
 
 function addListener(element, events, listener) {
     events.forEach(ev => {
@@ -257,6 +337,7 @@ function setSelection(objects) {
     app.selectedObjectId = app.selectedObjectIds[0] || null;
     sendSelectionState(app.selectedObjectIds);
     updateToolbarState();
+    renderPropertyPanel();
     render();
 }
 
@@ -267,6 +348,7 @@ function updateToolbarState() {
     const hasGroupSelection = selectedObjects.some(object => object.groupId);
     const hasUnlockedSelection = selectedObjects.some(object => !object.locked);
     const hasLockedSelection = selectedObjects.some(object => object.locked);
+    const hasPeerLock = getPeerEditingSelectedObjects(selectedObjects);
 
     selectionActionIds.forEach(id => {
         const button = document.getElementById(id);
@@ -276,17 +358,90 @@ function updateToolbarState() {
         }
 
         if (id === 'group') {
-            button.disabled = !hasMultiSelection;
+            button.disabled = !hasMultiSelection || hasPeerLock;
         } else if (id === 'ungroup') {
-            button.disabled = !hasGroupSelection;
+            button.disabled = !hasGroupSelection || hasPeerLock;
         } else if (id === 'lock') {
-            button.disabled = !hasUnlockedSelection;
+            button.disabled = !hasUnlockedSelection || hasPeerLock;
         } else if (id === 'unlock') {
-            button.disabled = !hasLockedSelection;
+            button.disabled = !hasLockedSelection || hasPeerLock;
         } else {
-            button.disabled = !hasSelection;
+            button.disabled = !hasSelection || hasPeerLock;
         }
     });
+}
+
+function renderPropertyPanel() {
+    const selectedObjects = getSelectedObjects();
+
+    if (!selectedObjects.length) {
+        document.body.classList.remove('properties-open');
+        return;
+    }
+
+    const firstObject = selectedObjects[0];
+    isUpdatingProperties = true;
+    document.body.classList.add('properties-open');
+
+    if (propertiesSummary) {
+        propertiesSummary.textContent = selectedObjects.length === 1
+            ? getObjectName(firstObject)
+            : `${selectedObjects.length} objects selected`;
+    }
+
+    if (propertyStroke) {
+        propertyStroke.value = normalizeColorForInput(firstObject.stroke || firstObject.color, '#0f172a');
+        propertyStroke.disabled = getPeerEditingSelectedObjects(selectedObjects);
+    }
+
+    if (propertyFill) {
+        propertyFill.value = normalizeColorForInput(firstObject.fill, '#ffffff');
+        propertyFill.disabled = getPeerEditingSelectedObjects(selectedObjects);
+    }
+
+    if (propertyLineWidth) {
+        propertyLineWidth.value = firstObject.lineWidth || 2;
+        propertyLineWidth.disabled = getPeerEditingSelectedObjects(selectedObjects);
+    }
+
+    if (propertyRotation) {
+        propertyRotation.value = Math.round(firstObject.rotation || 0);
+        propertyRotation.disabled = getPeerEditingSelectedObjects(selectedObjects);
+    }
+
+    if (propertyLocked) {
+        propertyLocked.checked = selectedObjects.every(object => object.locked);
+        propertyLocked.disabled = getPeerEditingSelectedObjects(selectedObjects);
+    }
+
+    isUpdatingProperties = false;
+}
+
+function updateSelectedProperties(updater, activityKind, activityDetails = {}) {
+    if (isUpdatingProperties) {
+        return;
+    }
+
+    const selectedObjects = getSelectedObjects();
+    const editableObjects = selectedObjects.filter(object => !object.locked || activityDetails.allowLocked);
+
+    if (!canEditObjects(selectedObjects) || !editableObjects.length) {
+        return;
+    }
+
+    saveHistory();
+    editableObjects.forEach(updater);
+    render();
+    renderPropertyPanel();
+    broadcastBoardState();
+
+    if (activityKind) {
+        broadcastActivity(activityKind, {
+            objectId: editableObjects.length === 1 ? editableObjects[0].id : undefined,
+            objectName: editableObjects.length === 1 ? getObjectName(editableObjects[0]) : `${editableObjects.length} objects`,
+            ...activityDetails,
+        });
+    }
 }
 
 function getNormalizedBounds(start, end) {
@@ -322,7 +477,7 @@ function getResizeHandleAt(point) {
 function beginResize(handle) {
     const selectedObjects = getSelectedObjects().filter(object => !object.locked);
 
-    if (!handle || !selectedObjects.length) {
+    if (!handle || !selectedObjects.length || !canEditObjects(selectedObjects)) {
         return false;
     }
 
@@ -355,7 +510,7 @@ function beginRotate(point) {
     const selectedObjects = getSelectedObjects().filter(object => !object.locked);
     const bounds = getSelectedObjectsBounds();
 
-    if (!selectedObjects.length || !bounds) {
+    if (!selectedObjects.length || !bounds || !canEditObjects(selectedObjects)) {
         return false;
     }
 
@@ -531,6 +686,11 @@ function moveSelectedObject(point) {
     const selectedObjects = getSelectedObjects();
 
     if (!selectedObjects.length || !app.drag.last) {
+        return;
+    }
+
+    if (!canEditObjects(selectedObjects)) {
+        app.drag.last = point;
         return;
     }
 
@@ -808,12 +968,62 @@ export function initEvents() {
     window.updateRemoteCursors = updateRemoteCursors;
     window.whiteboardUpdateMinimap = updateMinimap;
     window.whiteboardUpdateRemoteLasers = updateRemoteLasers;
+    window.whiteboardUpdateSelectionUi = () => {
+        updateToolbarState();
+        renderPropertyPanel();
+    };
     updateToolbarState();
+    renderPropertyPanel();
     window.setInterval(updateRemoteLasers, 500);
     const boardName = localStorage.getItem(`whiteboard:boardName:${app.roomId}`) || `Whiteboard / ${app.roomId.slice(0, 8)}`;
     document.querySelector('.board-title span:last-child').textContent = boardName;
     shareButton.addEventListener('click', copyShareLink);
     snapshotClose?.addEventListener('click', closeSnapshotPanel);
+    propertiesClose?.addEventListener('click', () => document.body.classList.remove('properties-open'));
+    propertyStroke?.addEventListener('change', event => {
+        updateSelectedProperties(object => {
+            if ('stroke' in object && !('color' in object)) {
+                object.stroke = event.target.value;
+            } else {
+                object.color = event.target.value;
+            }
+        }, 'object-styled');
+    });
+    propertyFill?.addEventListener('change', event => {
+        updateSelectedProperties(object => {
+            if (!['line', 'arrow', 'connector', 'path'].includes(object.type)) {
+                object.fill = event.target.value;
+            }
+        }, 'object-styled');
+    });
+    propertyLineWidth?.addEventListener('change', event => {
+        const lineWidth = Math.max(1, Math.min(80, Number(event.target.value) || 1));
+        updateSelectedProperties(object => {
+            if ('lineWidth' in object) {
+                object.lineWidth = lineWidth;
+            }
+        }, 'object-styled');
+    });
+    propertyRotation?.addEventListener('change', event => {
+        const rotation = Math.max(-360, Math.min(360, Number(event.target.value) || 0));
+        updateSelectedProperties(object => {
+            object.rotation = rotation;
+        }, 'object-rotated');
+    });
+    propertyLocked?.addEventListener('change', event => {
+        const selectedObjects = getSelectedObjects();
+
+        if (!canEditObjects(selectedObjects)) {
+            renderPropertyPanel();
+            return;
+        }
+
+        if (setObjectsLocked(selectedObjects, event.target.checked)) {
+            broadcastActivity(event.target.checked ? 'objects-locked' : 'objects-unlocked', {
+                objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
+            });
+        }
+    });
     snapshotList?.addEventListener('click', event => {
         const button = event.target.closest('[data-snapshot-id]');
 
@@ -944,6 +1154,11 @@ export function initEvents() {
 
             if (toolbarButton.id === 'duplicate') {
                 const selectedObjects = getSelectedObjects();
+
+                if (!canEditObjects(selectedObjects)) {
+                    return;
+                }
+
                 const duplicates = selectedObjects.length > 1 ? duplicateObjects(selectedObjects) : [];
                 const duplicate = duplicates[0] || duplicateObject(app.selectedObjectId);
 
@@ -958,6 +1173,11 @@ export function initEvents() {
 
             if (toolbarButton.id === 'group') {
                 const selectedObjects = getSelectedObjects();
+
+                if (!canEditObjects(selectedObjects)) {
+                    return;
+                }
+
                 const groupId = groupObjects(selectedObjects);
 
                 if (groupId) {
@@ -971,6 +1191,10 @@ export function initEvents() {
             if (toolbarButton.id === 'ungroup') {
                 const selectedObjects = getSelectedObjects();
 
+                if (!canEditObjects(selectedObjects)) {
+                    return;
+                }
+
                 if (ungroupObjects(selectedObjects)) {
                     broadcastActivity('objects-ungrouped', {
                         objectName: `${selectedObjects.length} objects`,
@@ -983,6 +1207,10 @@ export function initEvents() {
                 const selectedObjects = getSelectedObjects();
                 const locked = toolbarButton.id === 'lock';
 
+                if (!canEditObjects(selectedObjects)) {
+                    return;
+                }
+
                 if (setObjectsLocked(selectedObjects, locked)) {
                     broadcastActivity(locked ? 'objects-locked' : 'objects-unlocked', {
                         objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
@@ -993,6 +1221,12 @@ export function initEvents() {
 
             if (toolbarButton.id === 'bringForward' || toolbarButton.id === 'sendBackward') {
                 const direction = toolbarButton.id === 'bringForward' ? 'forward' : 'backward';
+                const selectedObjects = getSelectedObjects();
+
+                if (!canEditObjects(selectedObjects)) {
+                    return;
+                }
+
                 const object = moveObjectLayer(app.selectedObjectId, direction);
 
                 if (object) {
@@ -1143,7 +1377,7 @@ export function initEvents() {
         if (app.currentTool === 'object-eraser') {
             const object = findObjectAt(point);
 
-            if (object && !object.locked) {
+            if (object && !object.locked && canEditObjects([object])) {
                 const deletedObject = deleteObjectById(object.id);
                 broadcastActivity('object-deleted', {
                     objectName: getObjectName(deletedObject),
@@ -1156,6 +1390,12 @@ export function initEvents() {
         }
 
         if (app.currentTool === 'fill') {
+            const targetObject = findObjectAt(point);
+
+            if (targetObject && !canEditObjects([targetObject])) {
+                return;
+            }
+
             const fillResult = floodFill(app.mouse.x, app.mouse.y, hexToRgba(app.fillColor));
 
             if (fillResult) {
@@ -1171,7 +1411,7 @@ export function initEvents() {
         if (app.currentTool === 'connector') {
             const object = findObjectAt(point);
 
-            if (object && !object.locked) {
+            if (object && !object.locked && canEditObjects([object])) {
                 app.drag.start = point;
                 app.drag.last = point;
                 app.drag.connectorStartId = object.id;
@@ -1276,7 +1516,7 @@ export function initEvents() {
             const startObject = app.objects.find(object => object.id === app.drag.connectorStartId);
             const endObject = findObjectAt(point);
 
-            if (startObject && endObject && !endObject.locked && startObject.id !== endObject.id) {
+            if (startObject && endObject && !endObject.locked && startObject.id !== endObject.id && canEditObjects([startObject, endObject])) {
                 const connector = createConnector(startObject, endObject, app.fillColor);
                 saveHistory();
                 app.objects.push(connector);
@@ -1337,6 +1577,10 @@ export function initEvents() {
         }
 
         event.preventDefault();
+        if (!canEditObjects(selectedObjects)) {
+            return;
+        }
+
         const deletedObjects = deleteObjectsByIds(selectedObjects.map(object => object.id));
 
         if (!deletedObjects.length) {
