@@ -781,6 +781,37 @@ body.drag-import::after {
     transform: translate(-50%, 0);
 }
 
+.text-editor-overlay {
+    position: fixed;
+    z-index: 36;
+    min-width: 180px;
+    max-width: min(360px, calc(100dvw - 28px));
+    padding: 4px;
+    border: 1px solid rgba(37, 99, 235, 0.32);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
+    backdrop-filter: blur(12px);
+}
+
+.text-editor-overlay textarea {
+    display: block;
+    width: 100%;
+    min-height: 52px;
+    padding: 9px 10px;
+    border: none;
+    outline: none;
+    border-radius: 7px;
+    background: #fff;
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+    line-height: 1.35;
+    resize: both;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
 .activity-item {
     position: relative;
     display: grid;

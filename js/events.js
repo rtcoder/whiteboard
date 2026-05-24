@@ -78,9 +78,12 @@ const propertyOpacity = document.getElementById('propertyOpacity');
 const propertyConnectorStyle = document.getElementById('propertyConnectorStyle');
 const propertyEndMarker = document.getElementById('propertyEndMarker');
 const statusToast = document.querySelector('.status-toast');
+const textEditorOverlay = document.querySelector('.text-editor-overlay');
+const textEditorInput = textEditorOverlay?.querySelector('textarea');
 const selectionActionIds = ['duplicate', 'group', 'ungroup', 'lock', 'unlock', 'bringForward', 'sendBackward'];
 let statusTimer = null;
 let isUpdatingProperties = false;
+let activeTextEditor = null;
 
 function showStatus(message) {
     if (!statusToast) {
@@ -162,6 +165,15 @@ function setPropertyRowState(input, enabled) {
 
     input.disabled = !enabled;
     row.classList.toggle('property-disabled', !enabled);
+}
+
+function valuesAreMixed(objects, getter) {
+    if (objects.length < 2) {
+        return false;
+    }
+
+    const firstValue = getter(objects[0]);
+    return objects.some(object => getter(object) !== firstValue);
 }
 
 function normalizeColorForInput(value, fallback = '#000000') {
@@ -452,12 +464,14 @@ function renderPropertyPanel() {
     }
 
     if (propertyLineWidth) {
-        propertyLineWidth.value = firstObject.lineWidth || 2;
+        propertyLineWidth.value = valuesAreMixed(selectedObjects, object => object.lineWidth || 2) ? '' : firstObject.lineWidth || 2;
+        propertyLineWidth.placeholder = valuesAreMixed(selectedObjects, object => object.lineWidth || 2) ? 'Mixed' : '';
         setPropertyRowState(propertyLineWidth, support.lineWidth && hasEditableObjects && !isPeerLocked);
     }
 
     if (propertyRotation) {
-        propertyRotation.value = Math.round(firstObject.rotation || 0);
+        propertyRotation.value = valuesAreMixed(selectedObjects, object => Math.round(object.rotation || 0)) ? '' : Math.round(firstObject.rotation || 0);
+        propertyRotation.placeholder = valuesAreMixed(selectedObjects, object => Math.round(object.rotation || 0)) ? 'Mixed' : '';
         setPropertyRowState(propertyRotation, hasEditableObjects && !isPeerLocked);
     }
 
@@ -472,12 +486,16 @@ function renderPropertyPanel() {
     }
 
     if (propertyFontSize) {
-        propertyFontSize.value = firstObject.fontSize || 16;
+        propertyFontSize.value = valuesAreMixed(selectedObjects, object => object.fontSize || 16) ? '' : firstObject.fontSize || 16;
+        propertyFontSize.placeholder = valuesAreMixed(selectedObjects, object => object.fontSize || 16) ? 'Mixed' : '';
         setPropertyRowState(propertyFontSize, support.fontSize && hasEditableObjects && !isPeerLocked);
     }
 
     if (propertyOpacity) {
-        propertyOpacity.value = Math.round((firstObject.opacity ?? 1) * 100);
+        propertyOpacity.value = valuesAreMixed(selectedObjects, object => Math.round((object.opacity ?? 1) * 100))
+            ? ''
+            : Math.round((firstObject.opacity ?? 1) * 100);
+        propertyOpacity.placeholder = valuesAreMixed(selectedObjects, object => Math.round((object.opacity ?? 1) * 100)) ? 'Mixed' : '';
         setPropertyRowState(propertyOpacity, support.opacity && hasEditableObjects && !isPeerLocked);
     }
 
@@ -519,6 +537,199 @@ function updateSelectedProperties(updater, activityKind, activityDetails = {}) {
             ...activityDetails,
         });
     }
+}
+
+function getTextEditorValueForObject(object) {
+    return object?.type === 'frame' ? object.title || 'Frame' : object?.text || '';
+}
+
+function getTextEditorSize(type, object) {
+    if (object) {
+        return {
+            width: object.width || 260,
+            height: object.height || 72,
+        };
+    }
+
+    if (type === 'sticky') {
+        return {width: 220, height: 132};
+    }
+
+    if (type === 'callout' || type === 'list' || type === 'comment') {
+        return {width: 280, height: 112};
+    }
+
+    if (type === 'label') {
+        return {width: 220, height: 52};
+    }
+
+    return {width: 260, height: 58};
+}
+
+function openTextEditor(point, type, object = null) {
+    if (!textEditorOverlay || !textEditorInput) {
+        return;
+    }
+
+    const objectsToEdit = object ? [object] : [];
+
+    if (object && (!canEditObjects(objectsToEdit) || object.locked)) {
+        return;
+    }
+
+    const size = getTextEditorSize(type, object);
+    const left = (point.x + app.zoom.offsetX) * app.zoom.scale;
+    const top = (point.y + app.zoom.offsetY) * app.zoom.scale;
+    activeTextEditor = {
+        object,
+        point,
+        type,
+        canceled: false,
+    };
+    textEditorOverlay.hidden = false;
+    textEditorOverlay.style.left = `${Math.max(12, Math.min(window.innerWidth - 220, left))}px`;
+    textEditorOverlay.style.top = `${Math.max(12, Math.min(window.innerHeight - 90, top))}px`;
+    textEditorOverlay.style.width = `${Math.max(180, Math.min(360, size.width * app.zoom.scale || size.width))}px`;
+    textEditorInput.style.minHeight = `${Math.max(52, Math.min(220, size.height * app.zoom.scale || size.height))}px`;
+    textEditorInput.value = object ? getTextEditorValueForObject(object) : '';
+    textEditorInput.focus();
+    textEditorInput.select();
+}
+
+function closeTextEditor(commit = true) {
+    if (!activeTextEditor || !textEditorOverlay || !textEditorInput) {
+        return;
+    }
+
+    const editor = activeTextEditor;
+    const text = textEditorInput.value.trim();
+    activeTextEditor = null;
+    textEditorOverlay.hidden = true;
+
+    if (!commit || !text) {
+        return;
+    }
+
+    if (editor.object) {
+        updateSelectedProperties(object => {
+            if (object.id !== editor.object.id) {
+                return;
+            }
+
+            if (object.type === 'frame') {
+                object.title = text;
+            } else if (object.type === 'list') {
+                object.items = text
+                    .split(/\n|,/)
+                    .map(item => item.trim())
+                    .filter(Boolean)
+                    .slice(0, 8);
+                object.text = object.items.join(', ');
+                object.height = Math.max(92, 36 + object.items.length * 26);
+            } else {
+                object.text = text;
+            }
+        }, 'object-styled');
+        return;
+    }
+
+    const objectFactories = {
+        callout: createCallout,
+        label: createLabel,
+        list: createList,
+        comment: createComment,
+        sticky: createSticky,
+        text: createText,
+    };
+    const object = (objectFactories[editor.type] || createText)(editor.point, text);
+    saveHistory();
+    app.objects.push(object);
+    setSelection([object]);
+    render();
+    broadcastBoardState();
+    broadcastActivity(editor.type === 'sticky' ? 'sticky-added' : editor.type === 'comment' ? 'comment-added' : 'text-added', {
+        objectId: object.id,
+        objectType: object.type,
+        text,
+    });
+}
+
+function isTypingTarget(target) {
+    return Boolean(target?.closest?.('input, textarea, select, [contenteditable="true"]'));
+}
+
+function duplicateSelection() {
+    const selectedObjects = getSelectedObjects();
+
+    if (!canEditObjects(selectedObjects)) {
+        return false;
+    }
+
+    const duplicates = selectedObjects.length > 1 ? duplicateObjects(selectedObjects) : [];
+    const duplicate = duplicates[0] || duplicateObject(app.selectedObjectId);
+
+    if (duplicate || duplicates.length) {
+        broadcastActivity('object-duplicated', {
+            objectId: duplicates.length === 1 ? duplicates[0].id : duplicate?.id,
+            objectName: duplicates.length > 1 ? `${duplicates.length} objects` : getObjectName(duplicate || duplicates[0]),
+        });
+        return true;
+    }
+
+    return false;
+}
+
+function groupSelection() {
+    const selectedObjects = getSelectedObjects();
+
+    if (!canEditObjects(selectedObjects)) {
+        return false;
+    }
+
+    const groupId = groupObjects(selectedObjects);
+
+    if (groupId) {
+        broadcastActivity('objects-grouped', {
+            objectName: `${selectedObjects.length} objects`,
+        });
+        return true;
+    }
+
+    return false;
+}
+
+function ungroupSelection() {
+    const selectedObjects = getSelectedObjects();
+
+    if (!canEditObjects(selectedObjects)) {
+        return false;
+    }
+
+    if (ungroupObjects(selectedObjects)) {
+        broadcastActivity('objects-ungrouped', {
+            objectName: `${selectedObjects.length} objects`,
+        });
+        return true;
+    }
+
+    return false;
+}
+
+function setSelectionLock(locked) {
+    const selectedObjects = getSelectedObjects();
+
+    if (!canEditObjects(selectedObjects)) {
+        return false;
+    }
+
+    if (setObjectsLocked(selectedObjects, locked)) {
+        broadcastActivity(locked ? 'objects-locked' : 'objects-unlocked', {
+            objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
+        });
+        return true;
+    }
+
+    return false;
 }
 
 function getNormalizedBounds(start, end) {
@@ -724,39 +935,7 @@ function finishDraft() {
 }
 
 function addTextObject(point, type) {
-    const promptLabel = {
-        callout: 'Callout text',
-        label: 'Label text',
-        list: 'List items, separated by commas',
-        comment: 'Comment',
-        sticky: 'Note content',
-        text: 'Text',
-    }[type] || 'Text';
-    const text = window.prompt(promptLabel);
-
-    if (!text?.trim()) {
-        return;
-    }
-
-    const objectFactories = {
-        callout: createCallout,
-        label: createLabel,
-        list: createList,
-        comment: createComment,
-        sticky: createSticky,
-        text: createText,
-    };
-    const object = (objectFactories[type] || createText)(point, text.trim());
-    saveHistory();
-    app.objects.push(object);
-    setSelection([object]);
-    render();
-    broadcastBoardState();
-    broadcastActivity(type === 'sticky' ? 'sticky-added' : type === 'comment' ? 'comment-added' : 'text-added', {
-        objectId: object.id,
-        objectType: object.type,
-        text,
-    });
+    openTextEditor(point, type);
 }
 
 function moveSelectedObject(point) {
@@ -1066,6 +1245,19 @@ export function initEvents() {
     document.querySelector('.board-title span:last-child').textContent = boardName;
     shareButton.addEventListener('click', copyShareLink);
     snapshotClose?.addEventListener('click', closeSnapshotPanel);
+    textEditorInput?.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            closeTextEditor(false);
+            return;
+        }
+
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            closeTextEditor(true);
+        }
+    });
+    textEditorInput?.addEventListener('blur', () => closeTextEditor(true));
     propertiesClose?.addEventListener('click', () => document.body.classList.remove('properties-open'));
     propertyStroke?.addEventListener('change', event => {
         updateSelectedProperties(object => {
@@ -1457,6 +1649,23 @@ export function initEvents() {
         }
     });
 
+    window.addEventListener('dblclick', event => {
+        if (!event.target.matches('.draw-handler')) {
+            return;
+        }
+
+        const point = getCanvasPoint(event.clientX, event.clientY);
+        const object = findObjectAt(point);
+
+        if (!object || !['text', 'sticky', 'callout', 'list', 'label', 'comment', 'frame'].includes(object.type)) {
+            return;
+        }
+
+        event.preventDefault();
+        setSelection([object]);
+        openTextEditor({x: object.x || point.x, y: object.y || point.y}, object.type, object);
+    });
+
     addListener(window, ['mousedown', 'touchstart'], e => {
         if (e.target.matches('.move-handler')) {
             activateMovingToolbar();
@@ -1567,16 +1776,7 @@ export function initEvents() {
         }
 
         if (app.currentTool === 'frame') {
-            const title = window.prompt('Frame name', 'Frame');
-
-            if (!title?.trim()) {
-                app.isDrawing = false;
-                showToolbar();
-                render();
-                return;
-            }
-
-            app.draftObject = createFrame(point, title.trim());
+            app.draftObject = createFrame(point, 'Frame');
             return;
         }
 
@@ -1705,7 +1905,57 @@ export function initEvents() {
     });
 
     window.addEventListener('keydown', event => {
+        if (isTypingTarget(event.target)) {
+            return;
+        }
+
+        const modifier = event.metaKey || event.ctrlKey;
         const selectedObjects = getSelectedObjects();
+
+        if (modifier && event.key.toLowerCase() === 'z') {
+            event.preventDefault();
+            if (event.shiftKey ? redo() : undo()) {
+                broadcastActivity('history-used', {
+                    action: event.shiftKey ? 'redo' : 'undo',
+                });
+            }
+            return;
+        }
+
+        if (modifier && event.key.toLowerCase() === 'y') {
+            event.preventDefault();
+            if (redo()) {
+                broadcastActivity('history-used', {
+                    action: 'redo',
+                });
+            }
+            return;
+        }
+
+        if (modifier && event.key.toLowerCase() === 'd') {
+            event.preventDefault();
+            duplicateSelection();
+            return;
+        }
+
+        if (modifier && event.shiftKey && event.key.toLowerCase() === 'g') {
+            event.preventDefault();
+            ungroupSelection();
+            return;
+        }
+
+        if (modifier && event.key.toLowerCase() === 'g') {
+            event.preventDefault();
+            groupSelection();
+            return;
+        }
+
+        if (modifier && event.key.toLowerCase() === 'l') {
+            event.preventDefault();
+            const shouldLock = selectedObjects.some(object => !object.locked);
+            setSelectionLock(shouldLock);
+            return;
+        }
 
         if (!['Backspace', 'Delete'].includes(event.key) || !selectedObjects.length) {
             return;
