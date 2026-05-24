@@ -1916,7 +1916,7 @@ export function initEvents() {
             }
 
             if (toolbarButton.id === 'snapshot') {
-                const serializableObjects = app.objects.filter(object => object.type !== 'bitmap');
+                const serializableObjects = app.objects;
                 const name = window.prompt('Snapshot name', `Snapshot ${new Date().toLocaleString()}`) || 'Snapshot';
                 const snapshot = {
                     id: crypto.randomUUID(),
