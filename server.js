@@ -320,7 +320,7 @@ function loadRoom(roomId) {
 
 function persistRoom(roomId, room) {
     const filePath = getRoomFile(roomId);
-    const tempPath = `${filePath}.tmp`;
+    const tempPath = `${filePath}.${process.pid}.${Date.now()}.${crypto.randomUUID()}.tmp`;
     const backupPath = `${filePath}.bak`;
     const payload = JSON.stringify({
         schemaVersion: CURRENT_ROOM_SCHEMA_VERSION,
@@ -1025,5 +1025,6 @@ module.exports = {
     getLockConflicts,
     getOperationObjectIds,
     mergeBoardState,
+    server,
     updateObjectLocks,
 };

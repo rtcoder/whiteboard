@@ -1,6 +1,6 @@
 {
     "scripts": {
         "start": "node server.js",
-        "test": "node scripts/smoke-tests.mjs"
+        "test": "node scripts/smoke-tests.mjs && node scripts/ws-integration-tests.mjs"
     }
 }
