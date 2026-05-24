@@ -104,6 +104,32 @@
       <span>Rotation</span>
       <input type="number" id="propertyRotation" min="-360" max="360" step="1">
     </label>
+    <label>
+      <span>Text</span>
+      <textarea id="propertyText" rows="3"></textarea>
+    </label>
+    <label>
+      <span>Font size</span>
+      <input type="number" id="propertyFontSize" min="8" max="96" step="1">
+    </label>
+    <label>
+      <span>Opacity</span>
+      <input type="number" id="propertyOpacity" min="5" max="100" step="5">
+    </label>
+    <label>
+      <span>Connector</span>
+      <select id="propertyConnectorStyle">
+        <option value="orthogonal">Orthogonal</option>
+        <option value="straight">Straight</option>
+      </select>
+    </label>
+    <label>
+      <span>Arrowhead</span>
+      <select id="propertyEndMarker">
+        <option value="arrow">Arrow</option>
+        <option value="none">None</option>
+      </select>
+    </label>
     <label class="property-checkbox">
       <input type="checkbox" id="propertyLocked">
       <span>Locked</span>

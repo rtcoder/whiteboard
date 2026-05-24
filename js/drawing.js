@@ -79,6 +79,25 @@ export function clear(commit = true) {
     return hadObjects;
 }
 
+export function clearUnlockedObjects(commit = true) {
+    const unlockedObjects = app.objects.filter(object => !object.locked);
+
+    if (!unlockedObjects.length) {
+        return false;
+    }
+
+    if (commit) {
+        saveHistory();
+    }
+
+    app.objects = app.objects.filter(object => object.locked);
+    app.selectedObjectId = null;
+    app.selectedObjectIds = [];
+    render();
+    broadcastBoardState();
+    return true;
+}
+
 function clearCanvas() {
     app.ctx.fillStyle = 'white';
     app.ctx.fillRect(0, 0, app.canvas.width, app.canvas.height);
@@ -1214,6 +1233,7 @@ function appendSvgObject(object, parent = app.svg) {
     setSvgAttrs(element, {
         'data-object-id': object.id,
         'data-object-type': object.type,
+        opacity: object.type !== 'path' ? object.opacity : undefined,
         transform: getRotationTransform(object),
     });
     parent.appendChild(element);
@@ -1456,7 +1476,7 @@ export function deleteObjectById(id) {
     app.selectedObjectId = null;
     app.selectedObjectIds = [];
     render();
-    broadcastBoardState({mode: 'replace'});
+    broadcastBoardState();
 
     return object;
 }
@@ -1480,7 +1500,7 @@ export function deleteObjectsByIds(ids) {
     app.selectedObjectId = null;
     app.selectedObjectIds = [];
     render();
-    broadcastBoardState({mode: 'replace'});
+    broadcastBoardState();
     return deletedObjects;
 }
 

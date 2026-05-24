@@ -11,12 +11,14 @@ let suppressBroadcast = false;
 let currentRevision = 0;
 let lastCursorSentAt = 0;
 let lastLaserSentAt = 0;
+let lastObjectLockSentAt = 0;
 let localObjectCache = new Map();
 let localObjectOrder = [];
 const DEBUG_NETWORK = true;
 const DEBUG_CURSOR = false;
 const CURSOR_SEND_INTERVAL = 50;
 const LASER_SEND_INTERVAL = 40;
+const OBJECT_LOCK_SEND_INTERVAL = 1200;
 
 function logNetwork(...args) {
     if (DEBUG_NETWORK) {
@@ -290,6 +292,24 @@ export function sendSelectionState(objectIds = []) {
         color: app.localUser.color,
         initials: app.localUser.initials,
     });
+    sendObjectLockState(objectIds, true);
+}
+
+export function sendObjectLockState(objectIds = [], force = false) {
+    const now = performance.now();
+
+    if (!force && now - lastObjectLockSentAt < OBJECT_LOCK_SEND_INTERVAL) {
+        return;
+    }
+
+    lastObjectLockSentAt = now;
+    send({
+        type: 'object-lock',
+        objectIds,
+        name: app.localUser.name,
+        color: app.localUser.color,
+        initials: app.localUser.initials,
+    });
 }
 
 export function sendLaserPosition(point, active = true) {
@@ -374,6 +394,7 @@ export function initNetwork({render, onPeersChange}) {
                 bytes: event.data?.length,
                 objects: message.objects?.length,
                 boardState: message.boardState?.length,
+                locks: message.locks?.length,
                 bitmapObjects: message.objects?.filter(object => object.type === 'bitmap').length,
             });
         }
@@ -383,6 +404,7 @@ export function initNetwork({render, onPeersChange}) {
             app.clientId = clientId;
             refreshLocalUserAvatar();
             currentRevision = message.revision || 0;
+            app.objectLocks = new Map((message.objectLocks || []).map(lock => [lock.objectId, lock]));
             addActivityEntries(message.activityLog || []);
             const boardState = message.boardState?.length ? migrateObjects(message.boardState) : loadLocalBoardState();
             logNetwork('apply init state', {
@@ -411,6 +433,40 @@ export function initNetwork({render, onPeersChange}) {
             logNetwork('board-state acknowledged', {
                 revision: currentRevision,
             });
+            return;
+        }
+
+        if (message.type === 'board-reject') {
+            currentRevision = Math.max(currentRevision, message.revision || 0);
+            const incomingObjects = migrateObjects(message.boardState || []);
+            saveLocalBoardState(incomingObjects);
+            suppressBroadcast = true;
+            app.objects = incomingObjects.map(deserializeObject);
+            app.selectedObjectId = null;
+            app.selectedObjectIds = [];
+            suppressBroadcast = false;
+            syncLocalObjectCache(incomingObjects);
+            renderBoard();
+            window.whiteboardUpdateSelectionUi?.();
+            logNetwork('board-state rejected', {
+                reason: message.reason,
+                objectIds: message.objectIds,
+                revision: currentRevision,
+            });
+            window.whiteboardShowStatus?.('Someone else is editing that object');
+            return;
+        }
+
+        if (message.type === 'object-lock-state') {
+            currentRevision = Math.max(currentRevision, message.revision || 0);
+            app.objectLocks = new Map((message.locks || []).map(lock => [lock.objectId, lock]));
+
+            if (message.deniedIds?.length) {
+                window.whiteboardShowStatus?.('Someone else is editing that object');
+            }
+
+            renderBoard();
+            window.whiteboardUpdateSelectionUi?.();
             return;
         }
 
@@ -459,7 +515,9 @@ export function initNetwork({render, onPeersChange}) {
 
         if (message.type === 'cursor') {
             const fallbackAvatar = getUserAvatar(message.name || 'Guest', `${message.name || 'Guest'}:${message.clientId}`);
+            const existingCollaborator = app.collaborators.get(message.clientId) || {};
             app.collaborators.set(message.clientId, {
+                ...existingCollaborator,
                 id: message.clientId,
                 name: message.name || 'Guest',
                 color: message.color || fallbackAvatar.color,
@@ -497,6 +555,7 @@ export function initNetwork({render, onPeersChange}) {
             };
             collaborator.laser = message.active ? {x: message.x, y: message.y, expiresAt: Date.now() + 1200} : null;
             app.collaborators.set(message.clientId, collaborator);
+            window.updateRemoteCursors?.();
             window.whiteboardUpdateRemoteLasers?.();
             return;
         }

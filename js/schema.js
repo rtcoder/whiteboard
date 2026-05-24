@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export function migrateObject(object) {
     const migrated = {
@@ -8,6 +8,10 @@ export function migrateObject(object) {
         rotation: 0,
         ...object,
     };
+
+    if (migrated.type === 'path') {
+        migrated.opacity = migrated.opacity ?? 1;
+    }
 
     if (migrated.type === 'connector') {
         migrated.lineWidth = migrated.lineWidth || 3;

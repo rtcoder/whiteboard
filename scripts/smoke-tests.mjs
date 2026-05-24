@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {Buffer} from 'node:buffer';
+import {createRequire} from 'node:module';
+
+const require = createRequire(import.meta.url);
+const {
+    applyBoardOperation,
+    getLockConflicts,
+    getOperationObjectIds,
+    mergeBoardState,
+    updateObjectLocks,
+} = require('../server.js');
 
 const schemaSource = await readFile(new URL('../js/schema.js', import.meta.url), 'utf8');
 const schemaModuleSource = `${schemaSource}
@@ -45,5 +55,33 @@ const migratedObjects = migrateObjects([
 
 assert.equal(migratedObjects.length, 2);
 assert.ok(migratedObjects.every(object => object.schemaVersion === CURRENT_SCHEMA_VERSION));
+
+const mergedState = mergeBoardState(
+    [{id: 'a', type: 'rectangle', color: '#111'}],
+    [{id: 'a', type: 'rectangle', color: '#222'}, {id: 'b', type: 'ellipse'}],
+);
+assert.deepEqual(mergedState.map(object => object.id), ['a', 'b']);
+assert.equal(mergedState[0].color, '#222');
+
+const operation = {
+    upsert: [{id: 'c', type: 'text'}],
+    deleteIds: ['a'],
+    orderIds: ['b', 'c'],
+};
+const operatedState = applyBoardOperation(mergedState, operation);
+assert.deepEqual(operatedState.map(object => object.id), ['b', 'c']);
+assert.deepEqual(getOperationObjectIds(operation, mergedState, operatedState).sort(), ['a', 'b', 'c']);
+
+const mockRoom = {
+    clients: [{clientId: 'one'}, {clientId: 'two'}],
+    objectLocks: new Map(),
+};
+const mockSocket = {
+    clientId: 'one',
+    user: {id: 'one', name: 'Ada'},
+};
+assert.deepEqual(updateObjectLocks(mockRoom, mockSocket, ['b']), []);
+assert.deepEqual(getLockConflicts(mockRoom, 'two', ['b']), ['b']);
+assert.deepEqual(getLockConflicts(mockRoom, 'one', ['b']), []);
 
 console.log('Smoke tests passed');

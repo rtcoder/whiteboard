@@ -517,6 +517,12 @@ body.properties-open .properties-panel {
     font-weight: 800;
 }
 
+.properties-content label:has(textarea),
+.properties-content label:has(select) {
+    grid-template-columns: 1fr;
+    gap: 6px;
+}
+
 .properties-content input[type="number"] {
     width: 76px;
     height: 32px;
@@ -529,6 +535,32 @@ body.properties-open .properties-panel {
     font-weight: 750;
 }
 
+.properties-content textarea,
+.properties-content select {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    background: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.properties-content textarea {
+    min-height: 66px;
+    padding: 8px;
+    resize: vertical;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+.properties-content select {
+    height: 32px;
+    padding: 0 8px;
+}
+
 .properties-content input[type="color"] {
     width: 40px;
     height: 32px;
@@ -538,6 +570,10 @@ body.properties-open .properties-panel {
     border-radius: 8px;
     background: #fff;
     cursor: pointer;
+}
+
+.properties-content .property-disabled {
+    opacity: 0.42;
 }
 
 .property-checkbox {

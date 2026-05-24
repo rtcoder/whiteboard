@@ -12,6 +12,7 @@ const rooms = new Map();
 const DEBUG_WS = true;
 const DEBUG_WS_CURSOR = false;
 const MAX_ACTIVITY_ITEMS = 200;
+const OBJECT_LOCK_TTL_MS = 8000;
 const mimeTypes = {
     '.css': 'text/css',
     '.html': 'text/html',
@@ -68,6 +69,7 @@ function getRoom(roomId) {
             id: roomId,
             boardState: storedRoom.boardState || [],
             clients: new Set(),
+            objectLocks: new Map(),
             revision: storedRoom.revision || 0,
             activityLog: storedRoom.activityLog || [],
         });
@@ -235,6 +237,89 @@ function applyBoardOperation(currentObjects, operation = {}) {
     return [...objectsById.values()];
 }
 
+function pruneObjectLocks(room) {
+    const now = Date.now();
+
+    for (const [objectId, lock] of room.objectLocks) {
+        if (lock.expiresAt <= now || ![...room.clients].some(client => client.clientId === lock.clientId)) {
+            room.objectLocks.delete(objectId);
+        }
+    }
+}
+
+function serializeObjectLocks(room) {
+    pruneObjectLocks(room);
+    return [...room.objectLocks.entries()].map(([objectId, lock]) => ({
+        objectId,
+        clientId: lock.clientId,
+        user: lock.user,
+        expiresAt: lock.expiresAt,
+    }));
+}
+
+function releaseClientObjectLocks(room, clientId, exceptObjectIds = []) {
+    const keepIds = new Set(exceptObjectIds);
+
+    for (const [objectId, lock] of room.objectLocks) {
+        if (lock.clientId === clientId && !keepIds.has(objectId)) {
+            room.objectLocks.delete(objectId);
+        }
+    }
+}
+
+function updateObjectLocks(room, socket, objectIds = []) {
+    pruneObjectLocks(room);
+    releaseClientObjectLocks(room, socket.clientId, objectIds);
+    const now = Date.now();
+    const deniedIds = [];
+
+    for (const objectId of objectIds) {
+        const existingLock = room.objectLocks.get(objectId);
+
+        if (existingLock && existingLock.clientId !== socket.clientId) {
+            deniedIds.push(objectId);
+            continue;
+        }
+
+        room.objectLocks.set(objectId, {
+            clientId: socket.clientId,
+            user: socket.user,
+            expiresAt: now + OBJECT_LOCK_TTL_MS,
+        });
+    }
+
+    return deniedIds;
+}
+
+function getOperationObjectIds(operation = {}, previousObjects = [], nextObjects = []) {
+    const ids = new Set([
+        ...(operation.deleteIds || []),
+        ...(operation.upsert || []).map(object => object.id),
+    ]);
+
+    if (operation.orderIds?.length) {
+        previousObjects.forEach(object => ids.add(object.id));
+        nextObjects.forEach(object => ids.add(object.id));
+    }
+
+    return [...ids].filter(Boolean);
+}
+
+function getBoardStateObjectIds(previousObjects = [], nextObjects = []) {
+    const ids = new Set();
+    previousObjects.forEach(object => ids.add(object.id));
+    nextObjects.forEach(object => ids.add(object.id));
+    return [...ids].filter(Boolean);
+}
+
+function getLockConflicts(room, clientId, objectIds = []) {
+    pruneObjectLocks(room);
+    return objectIds.filter(objectId => {
+        const lock = room.objectLocks.get(objectId);
+        return lock && lock.clientId !== clientId;
+    });
+}
+
 server.on('upgrade', (req, socket) => {
     const parsedUrl = url.parse(req.url, true);
     const roomId = parsedUrl.query.room;
@@ -284,6 +369,7 @@ server.on('upgrade', (req, socket) => {
         clientId,
         boardState: room.boardState,
         activityLog: room.activityLog,
+        objectLocks: serializeObjectLocks(room),
         revision: room.revision,
         peers: [...room.clients].filter(client => client !== socket).map(client => client.clientId),
     });
@@ -332,9 +418,26 @@ server.on('upgrade', (req, socket) => {
         }
 
         if (message.type === 'board-state') {
-            room.boardState = message.mode === 'replace'
+            const nextBoardState = message.mode === 'replace'
                 ? message.objects || []
                 : mergeBoardState(room.boardState, message.objects || []);
+            const touchedObjectIds = message.mode === 'replace'
+                ? getBoardStateObjectIds(room.boardState, nextBoardState)
+                : (message.objects || []).map(object => object.id);
+            const conflicts = getLockConflicts(room, clientId, touchedObjectIds);
+
+            if (conflicts.length) {
+                send(socket, {
+                    type: 'board-reject',
+                    reason: 'locked-object',
+                    objectIds: conflicts,
+                    boardState: room.boardState,
+                    revision: room.revision,
+                });
+                return;
+            }
+
+            room.boardState = nextBoardState;
             room.revision += 1;
             logWs('room state saved', {
                 roomId,
@@ -352,7 +455,21 @@ server.on('upgrade', (req, socket) => {
         }
 
         if (message.type === 'board-operation') {
-            room.boardState = applyBoardOperation(room.boardState, message.operation);
+            const nextBoardState = applyBoardOperation(room.boardState, message.operation);
+            const conflicts = getLockConflicts(room, clientId, getOperationObjectIds(message.operation, room.boardState, nextBoardState));
+
+            if (conflicts.length) {
+                send(socket, {
+                    type: 'board-reject',
+                    reason: 'locked-object',
+                    objectIds: conflicts,
+                    boardState: room.boardState,
+                    revision: room.revision,
+                });
+                return;
+            }
+
+            room.boardState = nextBoardState;
             room.revision += 1;
             logWs('room operation applied', {
                 roomId,
@@ -371,6 +488,19 @@ server.on('upgrade', (req, socket) => {
 
         if (message.type === 'activity' && message.event) {
             addRoomActivity(room, message.event);
+        }
+
+        if (message.type === 'object-lock') {
+            const deniedIds = updateObjectLocks(room, socket, message.objectIds || []);
+            const lockState = {
+                type: 'object-lock-state',
+                deniedIds,
+                locks: serializeObjectLocks(room),
+                revision: room.revision,
+            };
+            send(socket, lockState);
+            broadcast(room, socket, lockState);
+            return;
         }
 
         broadcast(room, socket, {
@@ -449,10 +579,12 @@ server.on('upgrade', (req, socket) => {
             clientId,
         });
         room.clients.delete(socket);
+        releaseClientObjectLocks(room, clientId);
     });
 
     socket.on('close', () => {
         room.clients.delete(socket);
+        releaseClientObjectLocks(room, clientId);
         logWs('client disconnected', {
             roomId,
             clientId,
@@ -462,6 +594,11 @@ server.on('upgrade', (req, socket) => {
         broadcast(room, socket, {
             type: 'peer-left',
             clientId,
+        });
+        broadcast(room, socket, {
+            type: 'object-lock-state',
+            locks: serializeObjectLocks(room),
+            revision: room.revision,
         });
 
         const leaveEvent = createActivity('user-left', socket.user);
@@ -473,6 +610,16 @@ server.on('upgrade', (req, socket) => {
     });
 });
 
-server.listen(PORT, HOST, () => {
-    console.log(`Whiteboard running at http://${HOST}:${PORT}`);
-});
+if (require.main === module) {
+    server.listen(PORT, HOST, () => {
+        console.log(`Whiteboard running at http://${HOST}:${PORT}`);
+    });
+}
+
+module.exports = {
+    applyBoardOperation,
+    getLockConflicts,
+    getOperationObjectIds,
+    mergeBoardState,
+    updateObjectLocks,
+};

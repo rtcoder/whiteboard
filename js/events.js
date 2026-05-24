@@ -1,6 +1,7 @@
 import {moveCursor} from './cursor.js';
 import {
     clear,
+    clearUnlockedObjects,
     cloneObjects,
     createCallout,
     createComment,
@@ -44,7 +45,7 @@ import {
 } from './drawing.js';
 import {getObjectName} from './activity.js';
 import {app, setMousePosition} from './main.js';
-import {broadcastActivity, broadcastBoardState, sendCursorPosition, sendLaserPosition, sendSelectionState} from './network.js';
+import {broadcastActivity, broadcastBoardState, sendCursorPosition, sendLaserPosition, sendObjectLockState, sendSelectionState} from './network.js';
 import {activateMovingToolbar, deactivateMovingToolbar, hideToolbar, moveToolbar, showToolbar} from './toolbar.js';
 import {clampZoomOffset, getCanvasPoint, getCanvasTransform, hexToRgba} from './utils.js';
 
@@ -71,6 +72,11 @@ const propertyFill = document.getElementById('propertyFill');
 const propertyLineWidth = document.getElementById('propertyLineWidth');
 const propertyRotation = document.getElementById('propertyRotation');
 const propertyLocked = document.getElementById('propertyLocked');
+const propertyText = document.getElementById('propertyText');
+const propertyFontSize = document.getElementById('propertyFontSize');
+const propertyOpacity = document.getElementById('propertyOpacity');
+const propertyConnectorStyle = document.getElementById('propertyConnectorStyle');
+const propertyEndMarker = document.getElementById('propertyEndMarker');
 const statusToast = document.querySelector('.status-toast');
 const selectionActionIds = ['duplicate', 'group', 'ungroup', 'lock', 'unlock', 'bringForward', 'sendBackward'];
 let statusTimer = null;
@@ -91,6 +97,12 @@ function showStatus(message) {
 
 function getPeerEditingObjectIds() {
     const objectIds = new Set();
+
+    app.objectLocks.forEach(lock => {
+        if (lock.clientId !== app.clientId && (!lock.expiresAt || lock.expiresAt > Date.now())) {
+            objectIds.add(lock.objectId);
+        }
+    });
 
     app.collaborators.forEach(user => {
         (user.selectedObjectIds || []).forEach(id => objectIds.add(id));
@@ -117,6 +129,28 @@ function canEditObjects(objects, message = 'Someone else is editing this object'
     }
 
     return true;
+}
+
+function getPropertySupport(objects) {
+    return {
+        fill: objects.some(object => !['line', 'arrow', 'connector', 'path'].includes(object.type)),
+        lineWidth: objects.some(object => 'lineWidth' in object),
+        text: objects.length === 1 && ['text', 'sticky', 'callout', 'list', 'label', 'comment', 'frame'].includes(objects[0].type),
+        fontSize: objects.some(object => 'fontSize' in object),
+        opacity: objects.some(object => 'opacity' in object || object.type === 'path' || object.type === 'image'),
+        connector: objects.length === 1 && objects[0].type === 'connector',
+    };
+}
+
+function setPropertyRowState(input, enabled) {
+    const row = input?.closest('label');
+
+    if (!input || !row) {
+        return;
+    }
+
+    input.disabled = !enabled;
+    row.classList.toggle('property-disabled', !enabled);
 }
 
 function normalizeColorForInput(value, fallback = '#000000') {
@@ -380,6 +414,9 @@ function renderPropertyPanel() {
     }
 
     const firstObject = selectedObjects[0];
+    const support = getPropertySupport(selectedObjects);
+    const isPeerLocked = getPeerEditingSelectedObjects(selectedObjects);
+    const hasEditableObjects = selectedObjects.some(object => !object.locked);
     isUpdatingProperties = true;
     document.body.classList.add('properties-open');
 
@@ -391,27 +428,52 @@ function renderPropertyPanel() {
 
     if (propertyStroke) {
         propertyStroke.value = normalizeColorForInput(firstObject.stroke || firstObject.color, '#0f172a');
-        propertyStroke.disabled = getPeerEditingSelectedObjects(selectedObjects);
+        setPropertyRowState(propertyStroke, hasEditableObjects && !isPeerLocked);
     }
 
     if (propertyFill) {
         propertyFill.value = normalizeColorForInput(firstObject.fill, '#ffffff');
-        propertyFill.disabled = getPeerEditingSelectedObjects(selectedObjects);
+        setPropertyRowState(propertyFill, support.fill && hasEditableObjects && !isPeerLocked);
     }
 
     if (propertyLineWidth) {
         propertyLineWidth.value = firstObject.lineWidth || 2;
-        propertyLineWidth.disabled = getPeerEditingSelectedObjects(selectedObjects);
+        setPropertyRowState(propertyLineWidth, support.lineWidth && hasEditableObjects && !isPeerLocked);
     }
 
     if (propertyRotation) {
         propertyRotation.value = Math.round(firstObject.rotation || 0);
-        propertyRotation.disabled = getPeerEditingSelectedObjects(selectedObjects);
+        setPropertyRowState(propertyRotation, hasEditableObjects && !isPeerLocked);
     }
 
     if (propertyLocked) {
         propertyLocked.checked = selectedObjects.every(object => object.locked);
-        propertyLocked.disabled = getPeerEditingSelectedObjects(selectedObjects);
+        setPropertyRowState(propertyLocked, !isPeerLocked);
+    }
+
+    if (propertyText) {
+        propertyText.value = support.text ? firstObject.text || firstObject.title || '' : '';
+        setPropertyRowState(propertyText, support.text && hasEditableObjects && !isPeerLocked);
+    }
+
+    if (propertyFontSize) {
+        propertyFontSize.value = firstObject.fontSize || 16;
+        setPropertyRowState(propertyFontSize, support.fontSize && hasEditableObjects && !isPeerLocked);
+    }
+
+    if (propertyOpacity) {
+        propertyOpacity.value = Math.round((firstObject.opacity ?? 1) * 100);
+        setPropertyRowState(propertyOpacity, support.opacity && hasEditableObjects && !isPeerLocked);
+    }
+
+    if (propertyConnectorStyle) {
+        propertyConnectorStyle.value = firstObject.connectorStyle || 'orthogonal';
+        setPropertyRowState(propertyConnectorStyle, support.connector && hasEditableObjects && !isPeerLocked);
+    }
+
+    if (propertyEndMarker) {
+        propertyEndMarker.value = firstObject.endMarker || 'arrow';
+        setPropertyRowState(propertyEndMarker, support.connector && hasEditableObjects && !isPeerLocked);
     }
 
     isUpdatingProperties = false;
@@ -752,7 +814,11 @@ function updateRemoteCursors() {
         return;
     }
 
-    const activePeerIds = new Set(app.collaborators.keys());
+    const activePeerIds = new Set(
+        [...app.collaborators.values()]
+            .filter(user => !user.laser || user.laser.expiresAt <= Date.now())
+            .map(user => user.id),
+    );
 
     remoteCursors.querySelectorAll('.remote-cursor').forEach(cursor => {
         if (!activePeerIds.has(cursor.dataset.userId)) {
@@ -761,6 +827,10 @@ function updateRemoteCursors() {
     });
 
     app.collaborators.forEach(user => {
+        if (user.laser && user.laser.expiresAt > Date.now()) {
+            return;
+        }
+
         let cursor = remoteCursors.querySelector(`[data-user-id="${user.id}"]`);
 
         if (!cursor) {
@@ -807,6 +877,7 @@ function updateRemoteLasers() {
 
         if (user.laser.expiresAt && user.laser.expiresAt < Date.now()) {
             user.laser = null;
+            updateRemoteCursors();
             return;
         }
 
@@ -968,6 +1039,7 @@ export function initEvents() {
     window.updateRemoteCursors = updateRemoteCursors;
     window.whiteboardUpdateMinimap = updateMinimap;
     window.whiteboardUpdateRemoteLasers = updateRemoteLasers;
+    window.whiteboardShowStatus = showStatus;
     window.whiteboardUpdateSelectionUi = () => {
         updateToolbarState();
         renderPropertyPanel();
@@ -1024,6 +1096,53 @@ export function initEvents() {
             });
         }
     });
+    propertyText?.addEventListener('change', event => {
+        updateSelectedProperties(object => {
+            if (object.type === 'frame') {
+                object.title = event.target.value || 'Frame';
+                return;
+            }
+
+            object.text = event.target.value;
+            if (object.type === 'list') {
+                object.items = event.target.value
+                    .split(/\n|,/)
+                    .map(item => item.trim())
+                    .filter(Boolean)
+                    .slice(0, 8);
+                object.text = object.items.join(', ');
+                object.height = Math.max(92, 36 + object.items.length * 26);
+            }
+        }, 'object-styled');
+    });
+    propertyFontSize?.addEventListener('change', event => {
+        const fontSize = Math.max(8, Math.min(96, Number(event.target.value) || 16));
+        updateSelectedProperties(object => {
+            if ('fontSize' in object) {
+                object.fontSize = fontSize;
+            }
+        }, 'object-styled');
+    });
+    propertyOpacity?.addEventListener('change', event => {
+        const opacity = Math.max(5, Math.min(100, Number(event.target.value) || 100)) / 100;
+        updateSelectedProperties(object => {
+            object.opacity = opacity;
+        }, 'object-styled');
+    });
+    propertyConnectorStyle?.addEventListener('change', event => {
+        updateSelectedProperties(object => {
+            if (object.type === 'connector') {
+                object.connectorStyle = event.target.value;
+            }
+        }, 'object-styled');
+    });
+    propertyEndMarker?.addEventListener('change', event => {
+        updateSelectedProperties(object => {
+            if (object.type === 'connector') {
+                object.endMarker = event.target.value;
+            }
+        }, 'object-styled');
+    });
     snapshotList?.addEventListener('click', event => {
         const button = event.target.closest('[data-snapshot-id]');
 
@@ -1072,6 +1191,14 @@ export function initEvents() {
             loadImageFile(imageItem.getAsFile());
         }
     });
+    window.addEventListener('beforeunload', () => {
+        sendObjectLockState([], true);
+    });
+    window.setInterval(() => {
+        if (app.selectedObjectIds.length) {
+            sendObjectLockState(app.selectedObjectIds);
+        }
+    }, 2000);
     window.addEventListener('dragover', event => {
         if ([...(event.dataTransfer?.items || [])].some(item => item.type.startsWith('image/'))) {
             event.preventDefault();
@@ -1121,14 +1248,7 @@ export function initEvents() {
             }
 
             if (toolbarButton.id === 'clear') {
-                const lockedObjects = app.objects.filter(object => object.locked);
-
-                if (clear()) {
-                    if (lockedObjects.length) {
-                        app.objects = lockedObjects;
-                        broadcastBoardState({mode: 'replace'});
-                        render();
-                    }
+                if (clearUnlockedObjects()) {
                     broadcastActivity('board-cleared');
                 }
                 return;

@@ -49,6 +49,7 @@ export const app = {
         initials: storedUserAvatar.initials,
     },
     collaborators: new Map(),
+    objectLocks: new Map(),
     activityLog: [],
     mouse: {
         x: 0,
