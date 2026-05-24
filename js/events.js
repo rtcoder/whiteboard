@@ -807,24 +807,11 @@ function getNormalizedBounds(start, end) {
 }
 
 function getResizeHandleAt(point) {
-    const bounds = getSelectedObjectsBounds();
-
-    if (!bounds) {
-        return null;
-    }
-
-    const size = Math.max(12, 14 / app.zoom.scale);
-    const handles = [
-        {handle: 'nw', x: bounds.x, y: bounds.y},
-        {handle: 'ne', x: bounds.x + bounds.width, y: bounds.y},
-        {handle: 'se', x: bounds.x + bounds.width, y: bounds.y + bounds.height},
-        {handle: 'sw', x: bounds.x, y: bounds.y + bounds.height},
-    ];
-
-    return handles.find(item => (
-        Math.abs(point.x - item.x) <= size &&
-        Math.abs(point.y - item.y) <= size
-    ))?.handle || null;
+    const screenX = (point.x + app.zoom.offsetX) * app.zoom.scale;
+    const screenY = (point.y + app.zoom.offsetY) * app.zoom.scale;
+    const el = document.elementsFromPoint(screenX, screenY)
+        .find(el => el.hasAttribute('data-resize-handle'));
+    return el?.getAttribute('data-resize-handle') ?? null;
 }
 
 function beginResize(handle) {
@@ -879,18 +866,10 @@ function beginRotate(point) {
 }
 
 function getRotateHandleAt(point) {
-    const bounds = getSelectedObjectsBounds();
-
-    if (!bounds) {
-        return false;
-    }
-
-    const handle = {
-        x: bounds.x + bounds.width / 2,
-        y: bounds.y - Math.max(34, 34 / app.zoom.scale),
-    };
-    const size = Math.max(14, 16 / app.zoom.scale);
-    return Math.abs(point.x - handle.x) <= size && Math.abs(point.y - handle.y) <= size;
+    const screenX = (point.x + app.zoom.offsetX) * app.zoom.scale;
+    const screenY = (point.y + app.zoom.offsetY) * app.zoom.scale;
+    return document.elementsFromPoint(screenX, screenY)
+        .some(el => el.hasAttribute('data-rotate-handle'));
 }
 
 function getConnectorEndpointAt(point) {

@@ -2231,27 +2231,9 @@ export function findObjectAt(point) {
         .elementsFromPoint(screenX, screenY)
         .map(element => element.closest?.('[data-object-id]'))
         .find(Boolean);
-
-    if (hitElement) {
-        const objectId = hitElement.dataset.objectId;
-        const object = [...app.objects].reverse().find(item => item.id === objectId);
-
-        if (object && isPointInsideObject(point, object)) {
-            return object;
-        }
-
-        if (object && (object.type === 'path' || object.type === 'line' || object.type === 'arrow' || object.type === 'connector')) {
-            return object;
-        }
-    }
-
-    for (const object of [...app.objects].reverse()) {
-        if (isPointInsideObject(point, object)) {
-            return object;
-        }
-    }
-
-    return null;
+    return hitElement
+        ? app.objects.find(item => item.id === hitElement.dataset.objectId) ?? null
+        : null;
 }
 
 export function draw() {
