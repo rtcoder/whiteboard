@@ -4,11 +4,11 @@ import {createId, getCanvasPoint} from './utils.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const bitmapUrlCache = new WeakMap();
-const FILL_EDGE_CLEANUP_MIN_NEIGHBORS = 2;
 const BASE_SHAPE_TYPES = ['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'];
 const FLOW_SHAPE_TYPES = ['flow-process', 'flow-decision', 'flow-terminator', 'flow-database'];
 const DIAGRAM_OBJECT_TYPES = ['mind-node', 'swimlane', 'kanban', 'template-frame'];
 const SHAPE_TYPES = [...BASE_SHAPE_TYPES, ...FLOW_SHAPE_TYPES, ...DIAGRAM_OBJECT_TYPES];
+const FILLABLE_BOX_TYPES = ['sticky', 'callout', 'list', 'label', 'comment', 'frame', 'swimlane', 'kanban', 'template-frame'];
 const ANCHORS = ['top', 'right', 'bottom', 'left'];
 
 function cloneImageData(imageData) {
@@ -124,14 +124,16 @@ function setSvgAttrs(element, attrs) {
     });
 }
 
-function getPathData(points) {
+function getPathData(points, closed = false) {
     if (!points.length) {
         return '';
     }
 
-    return points
+    const data = points
         .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
         .join(' ');
+
+    return closed ? `${data} Z` : data;
 }
 
 function distanceBetweenPoints(a, b) {
@@ -177,7 +179,7 @@ function smoothPoints(points) {
 }
 
 export function optimizePathObject(object) {
-    if (object.type !== 'path' || object.points.length <= 2) {
+    if (!['path', 'freeform'].includes(object.type) || object.points.length <= 2) {
         return object;
     }
 
@@ -236,7 +238,7 @@ function getRawBounds(object) {
         };
     }
 
-    if (object.type === 'path') {
+    if (object.type === 'path' || object.type === 'freeform') {
         const xs = object.points.map(point => point.x);
         const ys = object.points.map(point => point.y);
         return {
@@ -458,7 +460,7 @@ function isPointInsideObject(point, object) {
 
     const localPoint = getLocalPoint(point, object);
 
-    if (['rectangle', 'ellipse', 'diamond', 'polygon', ...FLOW_SHAPE_TYPES, 'mind-node'].includes(object.type)) {
+    if (['rectangle', 'ellipse', 'diamond', 'polygon', ...FLOW_SHAPE_TYPES, 'mind-node', 'freeform', ...FILLABLE_BOX_TYPES].includes(object.type)) {
         return isPointInsideFillableObject(localPoint, object);
     }
 
@@ -601,6 +603,10 @@ function isPointInsidePolygon(point, points) {
 }
 
 function isPointInsideFillableObject(point, object) {
+    if (FILLABLE_BOX_TYPES.includes(object.type)) {
+        return isPointInBounds(point, getRawBounds(object), 0);
+    }
+
     if (object.type === 'rectangle' || object.type === 'flow-process') {
         const x = Math.min(object.x, object.x2);
         const y = Math.min(object.y, object.y2);
@@ -636,11 +642,25 @@ function isPointInsideFillableObject(point, object) {
         return isPointInBounds(point, getRawBounds(object), 0);
     }
 
+    if (object.type === 'freeform' && object.closed) {
+        return isPointInsidePolygon(point, object.points);
+    }
+
     return false;
 }
 
+export function canFillObject(object) {
+    return Boolean(object && !object.locked && (
+        FILLABLE_BOX_TYPES.includes(object.type) ||
+        ['rectangle', 'ellipse', 'diamond', 'polygon', ...FLOW_SHAPE_TYPES, 'mind-node'].includes(object.type) ||
+        object.type === 'freeform' && object.closed
+    ));
+}
+
 function fillObjectAt(point, fillColor) {
-    const object = [...app.objects].reverse().find(item => !item.locked && isPointInsideFillableObject(point, item));
+    const object = [...app.objects]
+        .reverse()
+        .find(item => !item.locked && isPointInsideFillableObject(getLocalPoint(point, item), item));
 
     if (!object) {
         return false;
@@ -792,19 +812,19 @@ function createSvgPath(object) {
     }
 
     const group = createSvgElement('g');
-    const d = getPathData(object.points);
+    const d = getPathData(object.points, object.closed);
     group.appendChild(createSvgElement('path', {
         d,
-        fill: 'none',
+        fill: object.closed ? object.fill || 'transparent' : 'none',
         stroke: 'transparent',
         'stroke-width': Math.max(18, object.lineWidth + 12),
         'stroke-linecap': 'round',
         'stroke-linejoin': 'round',
-        'pointer-events': 'stroke',
+        'pointer-events': object.closed ? 'all' : 'stroke',
     }));
     group.appendChild(createSvgElement('path', {
         d,
-        fill: 'none',
+        fill: object.closed ? object.fill || 'transparent' : 'none',
         stroke: object.color,
         'stroke-width': object.lineWidth,
         'stroke-linecap': 'round',
@@ -1430,7 +1450,7 @@ function appendSvgObject(object, parent = app.svg) {
         element = createSvgImageObject(object);
     } else if (object.type === 'connector') {
         element = createSvgConnector(object);
-    } else if (object.type === 'path') {
+    } else if (object.type === 'path' || object.type === 'freeform') {
         element = createSvgPath(object);
     } else if (SHAPE_TYPES.includes(object.type)) {
         element = createSvgShape(object);
@@ -1535,13 +1555,15 @@ export function render(showSelection = true) {
     window.whiteboardUpdateRemoteLasers?.();
 }
 
-export function createPath(point, color, lineWidth, opacity = 1) {
+export function createPath(point, color, lineWidth, opacity = 1, type = 'path') {
     return {
-        id: createId('path'),
-        type: 'path',
+        id: createId(type),
+        type,
         color,
         lineWidth,
         opacity,
+        closed: type === 'freeform',
+        fill: type === 'freeform' ? 'transparent' : undefined,
         points: [point],
     };
 }
@@ -2233,7 +2255,7 @@ export function findObjectAt(point) {
 }
 
 export function draw() {
-    if (!app.isDrawing || !app.draftObject || app.draftObject.type !== 'path') {
+    if (!app.isDrawing || !app.draftObject || !['path', 'freeform'].includes(app.draftObject.type)) {
         return;
     }
 
@@ -2305,235 +2327,7 @@ export function erasePathAt(point, radius = app.lineWidth) {
     return true;
 }
 
-function cleanupFillMask(mask, width, height, minX, minY, maxX, maxY) {
-    const pixelsToClear = [];
-
-    for (let py = minY; py <= maxY; py++) {
-        for (let px = minX; px <= maxX; px++) {
-            const index = py * width + px;
-
-            if (!mask[index]) {
-                continue;
-            }
-
-            let neighbors = 0;
-
-            for (let dy = -1; dy <= 1; dy++) {
-                for (let dx = -1; dx <= 1; dx++) {
-                    if (!dx && !dy) {
-                        continue;
-                    }
-
-                    const nx = px + dx;
-                    const ny = py + dy;
-
-                    if (nx >= 0 && nx < width && ny >= 0 && ny < height && mask[ny * width + nx]) {
-                        neighbors++;
-                    }
-                }
-            }
-
-            if (neighbors < FILL_EDGE_CLEANUP_MIN_NEIGHBORS) {
-                pixelsToClear.push(index);
-            }
-        }
-    }
-
-    pixelsToClear.forEach(index => {
-        mask[index] = 0;
-    });
-}
-
 export function floodFill(x, y, fillColor) {
     const point = getCanvasPoint(x, y);
-
-    const objectFill = fillObjectAt(point, fillColor);
-
-    if (objectFill) {
-        return objectFill;
-    }
-
-    render(false);
-
-    x = Math.floor(point.x);
-    y = Math.floor(point.y);
-
-    if (x < 0 || x >= app.canvas.width || y < 0 || y >= app.canvas.height) {
-        return;
-    }
-
-    const imageData = app.ctx.getImageData(0, 0, app.canvas.width, app.canvas.height);
-    const {data, width, height} = imageData;
-    const startOffset = (y * width + x) * 4;
-    const targetColor = [
-        data[startOffset],
-        data[startOffset + 1],
-        data[startOffset + 2],
-        data[startOffset + 3],
-    ];
-
-    if (
-        targetColor[0] === fillColor[0] &&
-        targetColor[1] === fillColor[1] &&
-        targetColor[2] === fillColor[2] &&
-        targetColor[3] === fillColor[3]
-    ) {
-        return;
-    }
-
-    const stack = [{x, y}];
-    const filledPixels = new Uint8Array(width * height);
-    let minX = x;
-    let minY = y;
-    let maxX = x;
-    let maxY = y;
-    let filledCount = 0;
-
-    const matchesTargetColor = (px, py) => {
-        const offset = (py * width + px) * 4;
-        return Math.abs(data[offset] - targetColor[0]) <= app.fillTolerance &&
-            Math.abs(data[offset + 1] - targetColor[1]) <= app.fillTolerance &&
-            Math.abs(data[offset + 2] - targetColor[2]) <= app.fillTolerance &&
-            Math.abs(data[offset + 3] - targetColor[3]) <= app.fillTolerance;
-    };
-
-    const setFillColor = (px, py) => {
-        filledPixels[py * width + px] = 1;
-        filledCount++;
-        minX = Math.min(minX, px);
-        minY = Math.min(minY, py);
-        maxX = Math.max(maxX, px);
-        maxY = Math.max(maxY, py);
-
-        const offset = (py * width + px) * 4;
-        data[offset] = fillColor[0];
-        data[offset + 1] = fillColor[1];
-        data[offset + 2] = fillColor[2];
-        data[offset + 3] = fillColor[3];
-    };
-
-    while (stack.length > 0) {
-        const {x: startX, y} = stack.pop();
-
-        if (!matchesTargetColor(startX, y)) {
-            continue;
-        }
-
-        let left = startX;
-        let right = startX;
-
-        while (left > 0 && matchesTargetColor(left - 1, y)) {
-            left--;
-        }
-
-        while (right < width - 1 && matchesTargetColor(right + 1, y)) {
-            right++;
-        }
-
-        let spanAbove = false;
-        let spanBelow = false;
-
-        for (let px = left; px <= right; px++) {
-            setFillColor(px, y);
-
-            if (y > 0 && matchesTargetColor(px, y - 1)) {
-                if (!spanAbove) {
-                    stack.push({x: px, y: y - 1});
-                    spanAbove = true;
-                }
-            } else {
-                spanAbove = false;
-            }
-
-            if (y < height - 1 && matchesTargetColor(px, y + 1)) {
-                if (!spanBelow) {
-                    stack.push({x: px, y: y + 1});
-                    spanBelow = true;
-                }
-            } else {
-                spanBelow = false;
-            }
-        }
-    }
-
-    if (!filledCount) {
-        return;
-    }
-
-    cleanupFillMask(filledPixels, width, height, minX, minY, maxX, maxY);
-    minX = width;
-    minY = height;
-    maxX = 0;
-    maxY = 0;
-    filledCount = 0;
-
-    for (let py = 0; py < height; py++) {
-        for (let px = 0; px < width; px++) {
-            if (!filledPixels[py * width + px]) {
-                continue;
-            }
-
-            filledCount++;
-            minX = Math.min(minX, px);
-            minY = Math.min(minY, py);
-            maxX = Math.max(maxX, px);
-            maxY = Math.max(maxY, py);
-        }
-    }
-
-    if (!filledCount) {
-        return;
-    }
-
-    const regionWidth = maxX - minX + 1;
-    const regionHeight = maxY - minY + 1;
-    const regionImageData = app.ctx.createImageData(regionWidth, regionHeight);
-    const regionBounds = {
-        x: minX,
-        y: minY,
-        width: regionWidth,
-        height: regionHeight,
-    };
-    const linkedObjectIds = app.objects
-        .filter(object => object.type === 'path')
-        .filter(object => boundsOverlap(regionBounds, getBounds(object), app.lineWidth * 2))
-        .map(object => object.id);
-
-    for (let py = minY; py <= maxY; py++) {
-        for (let px = minX; px <= maxX; px++) {
-            if (!filledPixels[py * width + px]) {
-                continue;
-            }
-
-            const targetOffset = ((py - minY) * regionWidth + (px - minX)) * 4;
-            regionImageData.data[targetOffset] = fillColor[0];
-            regionImageData.data[targetOffset + 1] = fillColor[1];
-            regionImageData.data[targetOffset + 2] = fillColor[2];
-            regionImageData.data[targetOffset + 3] = fillColor[3];
-        }
-    }
-
-    saveHistory();
-    const bitmapObject = {
-        id: createId('bitmap'),
-        type: 'bitmap',
-        x: minX,
-        y: minY,
-        width: regionWidth,
-        height: regionHeight,
-        linkedObjectIds,
-        imageData: regionImageData,
-    };
-
-    app.objects.push(bitmapObject);
-    app.selectedObjectId = bitmapObject.id;
-    app.selectedObjectIds = [bitmapObject.id];
-    render();
-    broadcastBoardState();
-
-    return {
-        color: rgbaToCss(fillColor),
-        objectId: bitmapObject.id,
-        objectType: linkedObjectIds.length ? 'path' : 'bitmap',
-    };
+    return fillObjectAt(point, fillColor);
 }

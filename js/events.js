@@ -3,6 +3,7 @@ import {
     clear,
     clearUnlockedObjects,
     cloneObjects,
+    canFillObject,
     createCallout,
     createComment,
     createFrame,
@@ -173,7 +174,7 @@ function canEditObjects(objects, message = 'Someone else is editing this object'
 
 function getPropertySupport(objects) {
     return {
-        fill: objects.some(object => !['line', 'arrow', 'connector', 'path'].includes(object.type)),
+        fill: objects.some(canFillObject),
         lineWidth: objects.some(object => 'lineWidth' in object),
         text: objects.length === 1 && TEXT_EDITABLE_TYPES.includes(objects[0].type),
         fontSize: objects.some(object => 'fontSize' in object),
@@ -1027,11 +1028,13 @@ function updateResize(point) {
 function startPath(point) {
     const isEraser = app.currentTool === 'eraser';
     const isPencil = app.currentTool === 'pencil';
+    const isFreeform = app.currentTool === 'freeform';
     app.draftObject = createPath(
         point,
         isEraser ? 'white' : app.fillColor,
         isPencil ? Math.max(2, Math.round(app.lineWidth * 0.45)) : app.lineWidth,
         app.currentTool === 'marker' ? 0.35 : isPencil ? 0.72 : 1,
+        isFreeform ? 'freeform' : 'path',
     );
 }
 
@@ -1052,6 +1055,16 @@ function finishDraft() {
     if (object.type === 'path' && object.points.length < 2) {
         render();
         return;
+    }
+
+    if (object.type === 'freeform' && object.points.length < 3) {
+        render();
+        return;
+    }
+
+    if (object.type === 'freeform') {
+        object.closed = true;
+        object.fill = object.fill || 'transparent';
     }
 
     if (object.type === 'template-frame' && Math.abs(object.x2 - object.x) < 320) {
@@ -1089,7 +1102,7 @@ function finishDraft() {
     render();
     broadcastBoardState();
 
-    if (DRAWN_SHAPE_TOOLS.includes(object.type) || object.type === 'template-frame') {
+    if (DRAWN_SHAPE_TOOLS.includes(object.type) || object.type === 'template-frame' || object.type === 'freeform') {
         broadcastActivity('shape-added', {
             color: object.color,
             objectId: object.id,
@@ -2098,6 +2111,8 @@ export function initEvents() {
                     objectId: fillResult.objectId,
                     objectType: fillResult.objectType,
                 });
+            } else {
+                showStatus('Fill works on closed SVG objects only');
             }
             return;
         }

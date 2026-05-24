@@ -21,6 +21,7 @@ const objectLabels = {
     'flow-process': 'process',
     'flow-terminator': 'terminator',
     frame: 'frame',
+    freeform: 'freeform shape',
     image: 'image',
     label: 'label',
     line: 'line',
