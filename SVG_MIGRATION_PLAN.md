@@ -69,11 +69,11 @@ Rendering and editing flow:
 - [x] Added inline text editing overlay.
 - [x] Added vector-friendly freehand smoothing and simplification.
 - [x] Added advanced connector anchors and routing.
-- [ ] Remove persistent canvas board runtime.
-- [ ] Make SVG renderer authoritative.
-- [ ] Move hit testing fully to SVG DOM node picking.
-- [ ] Replace bitmap fill creation with SVG object/path fill.
-- [ ] Migrate legacy bitmap fills to SVG image objects.
+- [x] Remove persistent canvas board runtime.
+- [x] Make SVG renderer authoritative.
+- [x] Move hit testing fully to SVG DOM node picking.
+- [x] Replace bitmap fill creation with SVG object/path fill.
+- [x] Migrate legacy bitmap fills to SVG image objects.
 - [ ] Remove remaining full-state sync paths outside init/recovery/snapshot restore.
 
 ## Implementation Groups
