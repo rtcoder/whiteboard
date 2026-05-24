@@ -199,10 +199,13 @@ Pure SVG fill is intentionally object based. Arbitrary pixel flood fill is no lo
 - [x] Message size limits.
 - [x] Cursor/laser/operation rate limits.
 - [x] Old empty room cleanup.
-- [ ] Two-client WebSocket integration tests.
-- [ ] Browser E2E coverage.
+- [x] Two-client WebSocket integration tests.
+- [x] Browser QA smoke script and manual checklist.
+- [ ] Full automated browser E2E coverage.
 
 ## Manual QA Checklist
+
+The full manual checklist lives in `QA_CHECKLIST.md`. `npm run test:e2e` runs static browser QA smoke checks and prints the manual scenarios that still need a real browser pass.
 
 - [ ] Create a room, join as a second user, and confirm both clients receive late-join state.
 - [ ] Draw a shape, fill it, refresh both clients, and confirm the fill persists.
