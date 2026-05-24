@@ -67,15 +67,6 @@ const activityIcons = {
     'user-left': '<path d="M8 20C8 16.7 10.2 15 12 15C13.8 15 16 16.7 16 20"/><circle cx="12" cy="9" r="3"/><path d="M16 11H22"/><path d="M19 8L22 11L19 14"/>',
 };
 
-function escapeHtml(value) {
-    return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
-
 function formatTime(timestamp) {
     return new Intl.DateTimeFormat('pl-PL', {
         hour: '2-digit',
@@ -254,6 +245,79 @@ function getGroupedActivityEvents(events) {
     }, []);
 }
 
+class ActivityItemElement extends HTMLLIElement {
+    set activityEvent(event) {
+        this._activityEvent = event;
+        this.render();
+    }
+
+    get activityEvent() {
+        return this._activityEvent;
+    }
+
+    static getText(event) {
+        return getActivityText(event);
+    }
+
+    render() {
+        const event = this._activityEvent;
+
+        if (!event) {
+            return;
+        }
+
+        const user = getEventUser(event);
+        const objectId = event.details?.objectId;
+        const isExistingObjectEvent = objectId && app.objects.some(object => object.id === objectId);
+        const time = document.createElement('time');
+        const avatar = document.createElement('span');
+        const kindIcon = document.createElement('span');
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        const text = document.createElement('span');
+
+        this.className = `activity-item${isExistingObjectEvent ? ' has-object-link' : ''}`;
+        this.style.setProperty('--activity-color', user.color);
+
+        if (isExistingObjectEvent) {
+            this.dataset.objectId = objectId;
+            this.tabIndex = 0;
+            this.title = 'Highlight object';
+        } else {
+            delete this.dataset.objectId;
+            this.removeAttribute('tabindex');
+            this.removeAttribute('title');
+        }
+
+        time.textContent = formatTime(event.timestamp);
+
+        avatar.className = 'activity-avatar';
+        avatar.textContent = user.initials;
+
+        icon.setAttribute('viewBox', '0 0 24 24');
+        icon.setAttribute('fill', 'none');
+        icon.innerHTML = getActivityIcon(event.kind);
+
+        kindIcon.className = 'activity-kind-icon';
+        kindIcon.setAttribute('aria-hidden', 'true');
+        kindIcon.appendChild(icon);
+
+        text.className = 'activity-text';
+        text.textContent = ActivityItemElement.getText(event);
+
+        if (event.count > 1) {
+            const count = document.createElement('em');
+            count.textContent = ` ×${event.count}`;
+            text.appendChild(count);
+        }
+
+        this.replaceChildren(time, avatar, kindIcon, text);
+    }
+}
+
+if (!customElements.get('activity-item')) {
+    customElements.define('activity-item', ActivityItemElement, {extends: 'li'});
+}
+
 function renderActivityLog() {
     if (!activityList) {
         return;
@@ -272,7 +336,7 @@ function renderActivityLog() {
                 return false;
             }
 
-            return !query || getActivityText(event).toLowerCase().includes(query);
+            return !query || ActivityItemElement.getText(event).toLowerCase().includes(query);
         });
 
     if (!events.length) {
@@ -280,28 +344,15 @@ function renderActivityLog() {
         return;
     }
 
-    activityList.innerHTML = getGroupedActivityEvents(events)
-        .reverse()
-        .map(event => {
-            const user = getEventUser(event);
-            const objectId = event.details?.objectId;
-            const isExistingObjectEvent = objectId && app.objects.some(object => object.id === objectId);
-            const objectAttrs = isExistingObjectEvent
-                ? ` data-object-id="${escapeHtml(objectId)}" tabindex="0" title="Highlight object"`
-                : '';
-
-            return `
-            <li class="activity-item${isExistingObjectEvent ? ' has-object-link' : ''}" style="--activity-color: ${escapeHtml(user.color)}"${objectAttrs}>
-                <time>${formatTime(event.timestamp)}</time>
-                <span class="activity-avatar">${escapeHtml(user.initials)}</span>
-                <span class="activity-kind-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none">${getActivityIcon(event.kind)}</svg>
-                </span>
-                <span class="activity-text">${escapeHtml(getActivityText(event))}${event.count > 1 ? ` <em>×${event.count}</em>` : ''}</span>
-            </li>
-        `;
-        })
-        .join('');
+    activityList.replaceChildren(
+        ...getGroupedActivityEvents(events)
+            .reverse()
+            .map(event => {
+                const item = document.createElement('li', {is: 'activity-item'});
+                item.activityEvent = event;
+                return item;
+            }),
+    );
 }
 
 function highlightActivityObject(item) {
