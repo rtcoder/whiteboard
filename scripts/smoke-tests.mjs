@@ -78,7 +78,15 @@ const operation = {
 };
 const operatedState = applyBoardOperation(mergedState, operation);
 assert.deepEqual(operatedState.map(object => object.id), ['b', 'c']);
-assert.deepEqual(getOperationObjectIds(operation, mergedState, operatedState).sort(), ['a', 'b', 'c']);
+assert.deepEqual(getOperationObjectIds(operation, mergedState, operatedState).sort(), ['a', 'c']);
+
+const reorderOperation = {
+    kind: 'objects-reordered',
+    upsert: [],
+    deleteIds: [],
+    orderIds: ['c', 'b'],
+};
+assert.deepEqual(getOperationObjectIds(reorderOperation, mergedState, operatedState).sort(), ['a', 'b', 'c']);
 
 const mockRoom = {
     clients: [{clientId: 'one'}, {clientId: 'two'}],

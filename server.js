@@ -355,7 +355,7 @@ function getOperationObjectIds(operation = {}, previousObjects = [], nextObjects
         ...(operation.upsert || []).map(object => object.id),
     ]);
 
-    if (operation.orderIds?.length) {
+    if (operation.kind === 'objects-reordered' && operation.orderIds?.length) {
         previousObjects.forEach(object => ids.add(object.id));
         nextObjects.forEach(object => ids.add(object.id));
     }
