@@ -34,18 +34,6 @@ function getRoomStorageKey() {
     return `whiteboard:roomState:${app.roomId}`;
 }
 
-function uint8ToBase64(bytes) {
-    let binary = '';
-    const chunkSize = 32768;
-
-    for (let index = 0; index < bytes.length; index += chunkSize) {
-        const chunk = bytes.subarray(index, index + chunkSize);
-        binary += String.fromCharCode(...chunk);
-    }
-
-    return btoa(binary);
-}
-
 function base64ToUint8(base64) {
     const binary = atob(base64);
     const bytes = new Uint8ClampedArray(binary.length);
@@ -78,22 +66,9 @@ function imageDataPayloadToDataUrl(payload = {}) {
 }
 
 function serializeObject(object) {
-    const withSchema = {
+    return {
         ...object,
         schemaVersion: CURRENT_SCHEMA_VERSION,
-    };
-
-    if (object.type !== 'bitmap') {
-        return withSchema;
-    }
-
-    return {
-        ...withSchema,
-        imageData: {
-            width: object.imageData.width,
-            height: object.imageData.height,
-            dataBase64: uint8ToBase64(object.imageData.data),
-        },
     };
 }
 

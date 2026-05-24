@@ -3,7 +3,6 @@ import {broadcastBoardState} from './network.js';
 import {createId, getCanvasPoint} from './utils.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const bitmapUrlCache = new WeakMap();
 const BASE_SHAPE_TYPES = ['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'];
 const FLOW_SHAPE_TYPES = ['flow-process', 'flow-decision', 'flow-terminator', 'flow-database'];
 const DIAGRAM_OBJECT_TYPES = ['mind-node', 'swimlane', 'kanban', 'template-frame'];
@@ -11,18 +10,7 @@ const SHAPE_TYPES = [...BASE_SHAPE_TYPES, ...FLOW_SHAPE_TYPES, ...DIAGRAM_OBJECT
 const FILLABLE_BOX_TYPES = ['sticky', 'callout', 'list', 'label', 'comment', 'frame', 'swimlane', 'kanban', 'template-frame'];
 const ANCHORS = ['top', 'right', 'bottom', 'left'];
 
-function cloneImageData(imageData) {
-    return new ImageData(new Uint8ClampedArray(imageData.data), imageData.width, imageData.height);
-}
-
 function cloneObject(object) {
-    if (object.type === 'bitmap') {
-        return {
-            ...object,
-            imageData: cloneImageData(object.imageData),
-        };
-    }
-
     if (object.points) {
         return {
             ...object,
@@ -188,21 +176,6 @@ export function optimizePathObject(object) {
     return object;
 }
 
-function imageDataToDataUrl(imageData) {
-    if (bitmapUrlCache.has(imageData)) {
-        return bitmapUrlCache.get(imageData);
-    }
-
-    const canvas = document.createElement('canvas');
-    canvas.width = imageData.width;
-    canvas.height = imageData.height;
-    canvas.getContext('2d').putImageData(imageData, 0, 0);
-
-    const url = canvas.toDataURL('image/png');
-    bitmapUrlCache.set(imageData, url);
-    return url;
-}
-
 function wrapText(text, maxChars) {
     const words = text.split(/\s+/);
     const lines = [];
@@ -272,15 +245,6 @@ function getRawBounds(object) {
     }
 
     if (['text', 'sticky', 'callout', 'list', 'label', 'frame', 'comment'].includes(object.type)) {
-        return {
-            x: object.x,
-            y: object.y,
-            width: object.width,
-            height: object.height,
-        };
-    }
-
-    if (object.type === 'bitmap') {
         return {
             x: object.x,
             y: object.y,
@@ -1254,17 +1218,6 @@ function createSvgCommentObject(object) {
     return group;
 }
 
-function createSvgBitmap(object) {
-    return createSvgElement('image', {
-        x: object.x,
-        y: object.y,
-        width: object.width,
-        height: object.height,
-        href: imageDataToDataUrl(object.imageData),
-        preserveAspectRatio: 'none',
-    });
-}
-
 function createSvgImageObject(object) {
     return createSvgElement('image', {
         x: object.x,
@@ -1444,9 +1397,7 @@ function createSvgPresenceBadges() {
 function appendSvgObject(object, parent = app.svg) {
     let element = null;
 
-    if (object.type === 'bitmap') {
-        element = createSvgBitmap(object);
-    } else if (object.type === 'image') {
+    if (object.type === 'image') {
         element = createSvgImageObject(object);
     } else if (object.type === 'connector') {
         element = createSvgConnector(object);
@@ -1480,7 +1431,7 @@ function renderSvg(showSelection = true) {
     const deferredObjects = new Set();
 
     for (const object of app.objects) {
-        if (object.type === 'bitmap' && object.linkedObjectIds?.length) {
+        if (object.type === 'image' && object.legacyBitmapFill && object.linkedObjectIds?.length) {
             appendSvgObject(object);
             object.linkedObjectIds.forEach(id => deferredObjects.add(id));
         }
