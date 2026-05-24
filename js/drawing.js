@@ -791,15 +791,28 @@ function createSvgPath(object) {
         return null;
     }
 
-    return createSvgElement('path', {
-        d: getPathData(object.points),
+    const group = createSvgElement('g');
+    const d = getPathData(object.points);
+    group.appendChild(createSvgElement('path', {
+        d,
+        fill: 'none',
+        stroke: 'transparent',
+        'stroke-width': Math.max(18, object.lineWidth + 12),
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        'pointer-events': 'stroke',
+    }));
+    group.appendChild(createSvgElement('path', {
+        d,
         fill: 'none',
         stroke: object.color,
         'stroke-width': object.lineWidth,
         'stroke-linecap': 'round',
         'stroke-linejoin': 'round',
         opacity: object.opacity || 1,
-    });
+        'pointer-events': 'none',
+    }));
+    return group;
 }
 
 function createSvgArrowHead(object) {
@@ -1068,9 +1081,20 @@ function createSvgShape(object) {
             y1: object.y,
             x2: object.x2,
             y2: object.y2,
+            stroke: 'transparent',
+            'stroke-width': Math.max(18, object.lineWidth + 12),
+            'stroke-linecap': 'round',
+            'pointer-events': 'stroke',
+        }));
+        group.appendChild(createSvgElement('line', {
+            x1: object.x,
+            y1: object.y,
+            x2: object.x2,
+            y2: object.y2,
             stroke: object.color,
             'stroke-width': object.lineWidth,
             'stroke-linecap': 'round',
+            'pointer-events': 'none',
         }));
 
         if (object.type === 'arrow') {
@@ -1253,10 +1277,20 @@ function createSvgConnector(object) {
     group.appendChild(createSvgElement('path', {
         d: pathData,
         fill: 'none',
+        stroke: 'transparent',
+        'stroke-width': Math.max(18, (object.lineWidth || 3) + 12),
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        'pointer-events': 'stroke',
+    }));
+    group.appendChild(createSvgElement('path', {
+        d: pathData,
+        fill: 'none',
         stroke: object.color,
         'stroke-width': object.lineWidth || 3,
         'stroke-linecap': 'round',
         'stroke-linejoin': 'round',
+        'pointer-events': 'none',
     }));
 
     if (object.endMarker !== 'none') {
@@ -2169,6 +2203,26 @@ export function resizeObjects(objects, startBounds, nextBounds) {
 }
 
 export function findObjectAt(point) {
+    const screenX = (point.x + app.zoom.offsetX) * app.zoom.scale;
+    const screenY = (point.y + app.zoom.offsetY) * app.zoom.scale;
+    const hitElement = document
+        .elementsFromPoint(screenX, screenY)
+        .map(element => element.closest?.('[data-object-id]'))
+        .find(Boolean);
+
+    if (hitElement) {
+        const objectId = hitElement.dataset.objectId;
+        const object = [...app.objects].reverse().find(item => item.id === objectId);
+
+        if (object && isPointInsideObject(point, object)) {
+            return object;
+        }
+
+        if (object && (object.type === 'path' || object.type === 'line' || object.type === 'arrow' || object.type === 'connector')) {
+            return object;
+        }
+    }
+
     for (const object of [...app.objects].reverse()) {
         if (isPointInsideObject(point, object)) {
             return object;
