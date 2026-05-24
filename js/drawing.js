@@ -69,7 +69,7 @@ export function clear(commit = true) {
     app.selectedObjectId = null;
     app.selectedObjectIds = [];
     render();
-    broadcastBoardState({mode: 'replace'});
+    broadcastBoardState();
     return hadObjects;
 }
 
