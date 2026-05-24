@@ -2,6 +2,8 @@
 
 Use this checklist for manual browser verification after changes that touch collaboration, board editing, export/import, or responsive UI.
 
+`npm run test:e2e` runs static browser QA smoke checks and prints the most important manual browser scenarios. It is not a replacement for a real two-window browser pass.
+
 ## Room Access
 
 - [ ] Create an open room and join it from a second window by share link.

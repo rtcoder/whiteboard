@@ -207,6 +207,8 @@ Pure SVG fill is intentionally object based. Arbitrary pixel flood fill is no lo
 
 The full manual checklist lives in `QA_CHECKLIST.md`. `npm run test:e2e` runs static browser QA smoke checks and prints the manual scenarios that still need a real browser pass.
 
+Current automated coverage includes schema/operation smoke tests plus two-client WebSocket tests for open rooms, closed-room access tokens, accept/deny join requests, object lock conflicts, independent object updates, and full-state replace rejection outside explicit replace mode. Full browser automation remains planned.
+
 - [ ] Create a room, join as a second user, and confirm both clients receive late-join state.
 - [ ] Draw a shape, fill it, refresh both clients, and confirm the fill persists.
 - [ ] Move, duplicate, delete, undo, and redo while a second client is connected.
