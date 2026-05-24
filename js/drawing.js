@@ -4,6 +4,7 @@ import {createId, getCanvasPoint} from './utils.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const bitmapUrlCache = new WeakMap();
+const FILL_EDGE_CLEANUP_MIN_NEIGHBORS = 2;
 
 function cloneImageData(imageData) {
     return new ImageData(new Uint8ClampedArray(imageData.data), imageData.width, imageData.height);
@@ -131,6 +132,58 @@ function getPathData(points) {
     return points
         .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
         .join(' ');
+}
+
+function distanceBetweenPoints(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function simplifyPoints(points, tolerance = 1.4) {
+    if (points.length <= 2) {
+        return points;
+    }
+
+    const simplified = [points[0]];
+    let lastKeptPoint = points[0];
+
+    for (const point of points.slice(1, -1)) {
+        if (distanceBetweenPoints(lastKeptPoint, point) >= tolerance) {
+            simplified.push(point);
+            lastKeptPoint = point;
+        }
+    }
+
+    simplified.push(points[points.length - 1]);
+    return simplified;
+}
+
+function smoothPoints(points) {
+    if (points.length <= 3) {
+        return points;
+    }
+
+    return points.map((point, index) => {
+        if (index === 0 || index === points.length - 1) {
+            return point;
+        }
+
+        const previous = points[index - 1];
+        const next = points[index + 1];
+        return {
+            x: Math.round((previous.x + point.x * 2 + next.x) / 4 * 10) / 10,
+            y: Math.round((previous.y + point.y * 2 + next.y) / 4 * 10) / 10,
+        };
+    });
+}
+
+export function optimizePathObject(object) {
+    if (object.type !== 'path' || object.points.length <= 2) {
+        return object;
+    }
+
+    const tolerance = Math.max(1.2, Math.min(5, object.lineWidth * 0.18));
+    object.points = smoothPoints(simplifyPoints(object.points, tolerance));
+    return object;
 }
 
 function imageDataToDataUrl(imageData) {
@@ -2078,8 +2131,111 @@ export function draw() {
         return;
     }
 
-    app.draftObject.points.push(getCanvasPoint(app.mouse.x, app.mouse.y));
+    const point = getCanvasPoint(app.mouse.x, app.mouse.y);
+    const previousPoint = app.draftObject.points[app.draftObject.points.length - 1];
+
+    if (previousPoint && distanceBetweenPoints(previousPoint, point) < Math.max(1.6, app.draftObject.lineWidth * 0.18)) {
+        return;
+    }
+
+    app.draftObject.points.push(point);
     render();
+}
+
+export function erasePathAt(point, radius = app.lineWidth) {
+    const eraseRadius = Math.max(6, radius);
+    const nextObjects = [];
+    let changed = false;
+
+    app.objects.forEach(object => {
+        if (object.type !== 'path' || object.locked) {
+            nextObjects.push(object);
+            return;
+        }
+
+        const segments = [];
+        let currentSegment = [];
+        let pathChanged = false;
+
+        object.points.forEach(pathPoint => {
+            if (distanceBetweenPoints(pathPoint, point) <= eraseRadius + object.lineWidth / 2) {
+                if (currentSegment.length >= 2) {
+                    segments.push(currentSegment);
+                }
+                currentSegment = [];
+                pathChanged = true;
+                changed = true;
+                return;
+            }
+
+            currentSegment.push({...pathPoint});
+        });
+
+        if (currentSegment.length >= 2) {
+            segments.push(currentSegment);
+        }
+
+        if (!pathChanged || segments.length === 1 && segments[0].length === object.points.length) {
+            nextObjects.push(object);
+            return;
+        }
+
+        segments.forEach((points, index) => {
+            nextObjects.push({
+                ...object,
+                id: index === 0 ? object.id : createId('path'),
+                points,
+            });
+        });
+    });
+
+    if (!changed) {
+        return false;
+    }
+
+    app.objects = nextObjects;
+    render();
+    broadcastBoardState();
+    return true;
+}
+
+function cleanupFillMask(mask, width, height, minX, minY, maxX, maxY) {
+    const pixelsToClear = [];
+
+    for (let py = minY; py <= maxY; py++) {
+        for (let px = minX; px <= maxX; px++) {
+            const index = py * width + px;
+
+            if (!mask[index]) {
+                continue;
+            }
+
+            let neighbors = 0;
+
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    if (!dx && !dy) {
+                        continue;
+                    }
+
+                    const nx = px + dx;
+                    const ny = py + dy;
+
+                    if (nx >= 0 && nx < width && ny >= 0 && ny < height && mask[ny * width + nx]) {
+                        neighbors++;
+                    }
+                }
+            }
+
+            if (neighbors < FILL_EDGE_CLEANUP_MIN_NEIGHBORS) {
+                pixelsToClear.push(index);
+            }
+        }
+    }
+
+    pixelsToClear.forEach(index => {
+        mask[index] = 0;
+    });
 }
 
 export function floodFill(x, y, fillColor) {
@@ -2191,6 +2347,31 @@ export function floodFill(x, y, fillColor) {
             } else {
                 spanBelow = false;
             }
+        }
+    }
+
+    if (!filledCount) {
+        return;
+    }
+
+    cleanupFillMask(filledPixels, width, height, minX, minY, maxX, maxY);
+    minX = width;
+    minY = height;
+    maxX = 0;
+    maxY = 0;
+    filledCount = 0;
+
+    for (let py = 0; py < height; py++) {
+        for (let px = 0; px < width; px++) {
+            if (!filledPixels[py * width + px]) {
+                continue;
+            }
+
+            filledCount++;
+            minX = Math.min(minX, px);
+            minY = Math.min(minY, py);
+            maxX = Math.max(maxX, px);
+            maxY = Math.max(maxY, py);
         }
     }
 

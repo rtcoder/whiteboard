@@ -22,6 +22,7 @@ import {
     exportBoardPng,
     exportBoardSvg,
     draw,
+    erasePathAt,
     findObjectAt,
     floodFill,
     getObjectBounds,
@@ -33,6 +34,7 @@ import {
     moveObjects,
     moveObjectLayer,
     normalizeFrame,
+    optimizePathObject,
     copyBoardImage,
     redo,
     render,
@@ -900,6 +902,8 @@ function finishDraft() {
     const object = app.draftObject;
     app.draftObject = null;
 
+    optimizePathObject(object);
+
     if (object.type === 'path' && object.points.length < 2) {
         render();
         return;
@@ -1733,6 +1737,12 @@ export function initEvents() {
             return;
         }
 
+        if (app.currentTool === 'eraser') {
+            saveHistory();
+            erasePathAt(point, app.lineWidth);
+            return;
+        }
+
         if (app.currentTool === 'fill') {
             const targetObject = findObjectAt(point);
 
@@ -1826,6 +1836,11 @@ export function initEvents() {
 
         if (app.currentTool === 'laser') {
             sendLaserPosition(point, true);
+            return;
+        }
+
+        if (app.currentTool === 'eraser') {
+            erasePathAt(point, app.lineWidth);
             return;
         }
 
