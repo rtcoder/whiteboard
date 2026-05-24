@@ -505,14 +505,16 @@ export function initNetwork({render, onPeersChange}) {
             logNetwork('board-state acknowledged', {
                 revision: currentRevision,
             });
-            setConnectionStatus('synced');
             clearTimeout(syncedStatusTimer);
+            setConnectionStatus('synced');
             syncedStatusTimer = setTimeout(() => setConnectionStatus('connected'), 2000);
             return;
         }
 
         if (message.type === 'board-reject') {
             currentRevision = Math.max(currentRevision, message.revision || 0);
+            clearTimeout(syncedStatusTimer);
+            setConnectionStatus('connected');
             const incomingObjects = migrateObjects(message.boardState || []);
             suppressBroadcast = true;
             app.objects = incomingObjects.map(deserializeObject);
@@ -551,6 +553,8 @@ export function initNetwork({render, onPeersChange}) {
                 code: message.code,
                 message: message.message,
             });
+            clearTimeout(syncedStatusTimer);
+            setConnectionStatus('connected');
             window.whiteboardShowStatus?.(message.message || 'Sync error');
             return;
         }
