@@ -134,10 +134,6 @@ function getPeerEditingObjectIds() {
         }
     });
 
-    app.collaborators.forEach(user => {
-        (user.selectedObjectIds || []).forEach(id => objectIds.add(id));
-    });
-
     return objectIds;
 }
 
@@ -1007,6 +1003,7 @@ function updateResize(point) {
 }
 
 function startPath(point) {
+    setSelection([]);
     const isEraser = app.currentTool === 'eraser';
     const isPencil = app.currentTool === 'pencil';
     const isFreeform = app.currentTool === 'freeform';
@@ -1020,6 +1017,7 @@ function startPath(point) {
 }
 
 function startShape(point) {
+    setSelection([]);
     app.draftObject = createShape(app.currentTool, point, app.fillColor, app.lineWidth);
 }
 
@@ -2177,11 +2175,13 @@ export function initEvents() {
         if (['text', 'sticky', 'callout', 'list', 'label', 'comment'].includes(app.currentTool)) {
             app.isDrawing = false;
             showToolbar();
+            setSelection([]);
             addTextObject(point, app.currentTool);
             return;
         }
 
         if (app.currentTool === 'frame') {
+            setSelection([]);
             app.draftObject = createFrame(point, 'Frame');
             return;
         }
