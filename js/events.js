@@ -1276,6 +1276,19 @@ function updateMinimap() {
     minimapSvg.innerHTML = `${objectRects}<rect class="mini-viewport" x="${viewport.x}" y="${viewport.y}" width="${viewport.width}" height="${viewport.height}"></rect>`;
 }
 
+function moveViewportFromMinimap(event) {
+    if (!minimap) {
+        return;
+    }
+
+    const rect = minimap.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * app.canvas.width;
+    const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) * app.canvas.height;
+    app.zoom.offsetX = window.innerWidth / 2 / app.zoom.scale - x;
+    app.zoom.offsetY = window.innerHeight / 2 / app.zoom.scale - y;
+    applyCanvasTransform();
+}
+
 function resizeImageForBoard(image, sourceType = 'image/png') {
     const maxDimension = 1600;
     const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
@@ -1545,13 +1558,23 @@ export function initEvents() {
         app.followUserId = app.followUserId === followButton.dataset.followUser ? null : followButton.dataset.followUser;
         updateRemoteCursors();
     });
-    minimap?.addEventListener('click', event => {
-        const rect = minimap.getBoundingClientRect();
-        const x = (event.clientX - rect.left) / rect.width * app.canvas.width;
-        const y = (event.clientY - rect.top) / rect.height * app.canvas.height;
-        app.zoom.offsetX = window.innerWidth / 2 / app.zoom.scale - x;
-        app.zoom.offsetY = window.innerHeight / 2 / app.zoom.scale - y;
-        applyCanvasTransform();
+    minimap?.addEventListener('pointerdown', event => {
+        event.preventDefault();
+        minimap.setPointerCapture?.(event.pointerId);
+        app.drag.minimap = true;
+        moveViewportFromMinimap(event);
+    });
+    minimap?.addEventListener('pointermove', event => {
+        if (app.drag.minimap) {
+            moveViewportFromMinimap(event);
+        }
+    });
+    minimap?.addEventListener('pointerup', event => {
+        app.drag.minimap = false;
+        minimap.releasePointerCapture?.(event.pointerId);
+    });
+    minimap?.addEventListener('pointercancel', () => {
+        app.drag.minimap = false;
     });
     fitBoardButton.addEventListener('click', () => {
         fitBoundsToScreen(getObjectsBounds() || {x: 0, y: 0, width: app.canvas.width, height: app.canvas.height});

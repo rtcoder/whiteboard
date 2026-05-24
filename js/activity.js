@@ -4,6 +4,8 @@ const activityPanel = document.querySelector('.activity-panel');
 const activityToggle = document.querySelector('.activity-toggle');
 const activityClose = document.querySelector('.activity-close');
 const activityList = document.querySelector('.activity-list');
+const activitySearch = document.querySelector('.activity-search');
+const activityFilter = document.querySelector('.activity-filter');
 const MAX_ACTIVITY_ITEMS = 200;
 
 const objectLabels = {
@@ -212,6 +214,45 @@ function getActivityIcon(kind) {
     return activityIcons[kind] || '<circle cx="12" cy="12" r="7"/><path d="M12 8V12L15 15"/>';
 }
 
+function getActivityFilterGroup(kind) {
+    if (kind === 'user-joined' || kind === 'user-left') {
+        return 'collaboration';
+    }
+
+    if (kind === 'history-used' || kind === 'snapshot-created' || kind === 'snapshot-restored') {
+        return 'history';
+    }
+
+    if (kind === 'text-added' || kind === 'sticky-added' || kind === 'comment-added') {
+        return 'text';
+    }
+
+    return 'objects';
+}
+
+function getGroupedActivityEvents(events) {
+    return events.reduce((groups, event) => {
+        const previous = groups[groups.length - 1];
+        const details = event.details || {};
+        const previousDetails = previous?.details || {};
+        const sameBucket = previous &&
+            previous.kind === event.kind &&
+            previous.user?.name === event.user?.name &&
+            details.objectType === previousDetails.objectType &&
+            details.color === previousDetails.color &&
+            Math.abs(new Date(previous.timestamp) - new Date(event.timestamp)) < 60000;
+
+        if (sameBucket) {
+            previous.count = (previous.count || 1) + 1;
+            previous.timestamp = event.timestamp;
+            return groups;
+        }
+
+        groups.push({...event, count: 1});
+        return groups;
+    }, []);
+}
+
 function renderActivityLog() {
     if (!activityList) {
         return;
@@ -222,8 +263,23 @@ function renderActivityLog() {
         return;
     }
 
-    activityList.innerHTML = app.activityLog
-        .slice()
+    const query = activitySearch?.value?.trim().toLowerCase() || '';
+    const filter = activityFilter?.value || 'all';
+    const events = app.activityLog
+        .filter(event => {
+            if (filter !== 'all' && getActivityFilterGroup(event.kind) !== filter) {
+                return false;
+            }
+
+            return !query || getActivityText(event).toLowerCase().includes(query);
+        });
+
+    if (!events.length) {
+        activityList.innerHTML = '<li class="activity-empty">No matching events</li>';
+        return;
+    }
+
+    activityList.innerHTML = getGroupedActivityEvents(events)
         .reverse()
         .map(event => {
             const user = getEventUser(event);
@@ -240,7 +296,7 @@ function renderActivityLog() {
                 <span class="activity-kind-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none">${getActivityIcon(event.kind)}</svg>
                 </span>
-                <span class="activity-text">${escapeHtml(getActivityText(event))}</span>
+                <span class="activity-text">${escapeHtml(getActivityText(event))}${event.count > 1 ? ` <em>×${event.count}</em>` : ''}</span>
             </li>
         `;
         })
@@ -280,6 +336,8 @@ export function refreshActivityLog() {
 
 export function initActivityPanel() {
     renderActivityLog();
+    activitySearch?.addEventListener('input', renderActivityLog);
+    activityFilter?.addEventListener('change', renderActivityLog);
 
     activityToggle?.addEventListener('click', () => {
         const isOpen = document.body.classList.toggle('activity-open');
