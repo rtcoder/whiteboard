@@ -102,6 +102,21 @@ This file tracks implemented tools, planned features, and useful next steps for 
 
 These groups track the remaining "tip-top" work. Each group should land as a focused commit.
 
+## Pure SVG Migration
+
+- [x] SVG board layer as the visible render surface.
+- [x] SVG rendering for current object types.
+- [ ] Remove persistent canvas board runtime.
+- [ ] Make SVG renderer authoritative.
+- [ ] Use SVG DOM node picking for hit testing.
+- [ ] Replace pixel flood fill with object/path SVG fill.
+- [ ] Add freeform closed SVG shape.
+- [ ] Migrate legacy bitmap fills to SVG image objects.
+- [ ] Make export and clipboard independent from board canvas.
+- [ ] Send undo/redo as operation diffs.
+
+Pure SVG fill is intentionally object based. Arbitrary pixel flood fill is no longer a target behavior.
+
 ### Collaboration Stability
 
 - [x] Server-side object leases/locks.
