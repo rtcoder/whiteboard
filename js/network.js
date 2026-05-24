@@ -249,7 +249,6 @@ export function broadcastBoardState({mode = 'merge'} = {}) {
             return;
         }
 
-        syncLocalObjectCache(objects);
         logNetwork('broadcast board-operation requested', {
             revision,
             upsert: operation.upsert.length,
@@ -262,6 +261,7 @@ export function broadcastBoardState({mode = 'merge'} = {}) {
             operation,
         });
         if (sent) {
+            syncLocalObjectCache(objects);
             clearTimeout(syncedStatusTimer);
             setConnectionStatus('saving');
         }
@@ -495,7 +495,7 @@ export function initNetwork({render, onPeersChange}) {
             refreshActivityLog();
             updatePeers();
             if (!message.boardState?.length && boardState.length) {
-                broadcastBoardState();
+                broadcastBoardState({ mode: 'replace' });
             }
             return;
         }
