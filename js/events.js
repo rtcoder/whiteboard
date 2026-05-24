@@ -25,6 +25,8 @@ import {
     erasePathAt,
     findObjectAt,
     floodFill,
+    getConnectorEndpoints,
+    getNearestAnchor,
     getObjectBounds,
     getObjectsInBounds,
     getObjectsBounds,
@@ -50,6 +52,28 @@ import {app, setMousePosition} from './main.js';
 import {broadcastActivity, broadcastBoardState, sendCursorPosition, sendLaserPosition, sendObjectLockState, sendSelectionState} from './network.js';
 import {activateMovingToolbar, deactivateMovingToolbar, hideToolbar, moveToolbar, showToolbar} from './toolbar.js';
 import {clampZoomOffset, getCanvasPoint, getCanvasTransform, hexToRgba} from './utils.js';
+
+const DRAWN_SHAPE_TOOLS = [
+    'rectangle',
+    'ellipse',
+    'diamond',
+    'polygon',
+    'line',
+    'arrow',
+    'frame',
+    'flow-process',
+    'flow-decision',
+    'flow-terminator',
+    'flow-database',
+    'mind-node',
+    'swimlane',
+    'kanban',
+    'template-retro',
+    'template-journey',
+    'template-architecture',
+    'template-brainstorming',
+];
+const TEXT_EDITABLE_TYPES = ['text', 'sticky', 'callout', 'list', 'label', 'comment', 'frame', 'mind-node', 'template-frame', 'flow-process', 'flow-decision', 'flow-terminator', 'flow-database', 'swimlane', 'connector'];
 
 const fillColorInput = document.getElementById('fillColor');
 const linePreview = document.querySelector('.line-width-preview');
@@ -151,7 +175,7 @@ function getPropertySupport(objects) {
     return {
         fill: objects.some(object => !['line', 'arrow', 'connector', 'path'].includes(object.type)),
         lineWidth: objects.some(object => 'lineWidth' in object),
-        text: objects.length === 1 && ['text', 'sticky', 'callout', 'list', 'label', 'comment', 'frame'].includes(objects[0].type),
+        text: objects.length === 1 && TEXT_EDITABLE_TYPES.includes(objects[0].type),
         fontSize: objects.some(object => 'fontSize' in object),
         opacity: objects.some(object => 'opacity' in object || object.type === 'path' || object.type === 'image'),
         connector: objects.length === 1 && objects[0].type === 'connector',
@@ -483,7 +507,7 @@ function renderPropertyPanel() {
     }
 
     if (propertyText) {
-        propertyText.value = support.text ? firstObject.text || firstObject.title || '' : '';
+        propertyText.value = support.text ? firstObject.text || firstObject.title || firstObject.label || '' : '';
         setPropertyRowState(propertyText, support.text && hasEditableObjects && !isPeerLocked);
     }
 
@@ -542,7 +566,15 @@ function updateSelectedProperties(updater, activityKind, activityDetails = {}) {
 }
 
 function getTextEditorValueForObject(object) {
-    return object?.type === 'frame' ? object.title || 'Frame' : object?.text || '';
+    if (object?.type === 'frame' || object?.type === 'swimlane' || object?.type === 'template-frame') {
+        return object.title || 'Frame';
+    }
+
+    if (object?.type === 'connector') {
+        return object.label || '';
+    }
+
+    return object?.text || '';
 }
 
 function getTextEditorSize(type, object) {
@@ -618,8 +650,10 @@ function closeTextEditor(commit = true) {
                 return;
             }
 
-            if (object.type === 'frame') {
+            if (object.type === 'frame' || object.type === 'swimlane' || object.type === 'template-frame') {
                 object.title = text;
+            } else if (object.type === 'connector') {
+                object.label = text;
             } else if (object.type === 'list') {
                 object.items = text
                     .split(/\n|,/)
@@ -734,6 +768,35 @@ function setSelectionLock(locked) {
     return false;
 }
 
+function addMindMapChild(parent) {
+    if (!parent || parent.type !== 'mind-node' || !canEditObjects([parent])) {
+        return false;
+    }
+
+    const bounds = getObjectBounds(parent);
+
+    if (!bounds) {
+        return false;
+    }
+
+    const child = createShape('mind-node', {x: bounds.x + bounds.width + 110, y: bounds.y + 8}, app.fillColor, app.lineWidth);
+    child.x2 = child.x + Math.max(160, bounds.width);
+    child.y2 = child.y + Math.max(84, bounds.height);
+    child.text = 'Child node';
+    const connector = createConnector(parent, child, app.fillColor);
+
+    saveHistory();
+    app.objects.push(child, connector);
+    setSelection([child]);
+    broadcastBoardState();
+    broadcastActivity('shape-added', {
+        color: child.color,
+        objectId: child.id,
+        objectType: child.type,
+    });
+    return true;
+}
+
 function getNormalizedBounds(start, end) {
     return {
         x: Math.min(start.x, end.x),
@@ -830,6 +893,89 @@ function getRotateHandleAt(point) {
     return Math.abs(point.x - handle.x) <= size && Math.abs(point.y - handle.y) <= size;
 }
 
+function getConnectorEndpointAt(point) {
+    const selectedObjects = getSelectedObjects();
+    const connector = selectedObjects.length === 1 && selectedObjects[0].type === 'connector'
+        ? selectedObjects[0]
+        : null;
+
+    if (!connector) {
+        return null;
+    }
+
+    const endpoints = getConnectorEndpoints(connector);
+    const size = Math.max(16, 18 / app.zoom.scale);
+
+    if (Math.hypot(point.x - endpoints.from.x, point.y - endpoints.from.y) <= size) {
+        return {connector, endpoint: 'from'};
+    }
+
+    if (Math.hypot(point.x - endpoints.to.x, point.y - endpoints.to.y) <= size) {
+        return {connector, endpoint: 'to'};
+    }
+
+    return null;
+}
+
+function beginConnectorEndpointDrag(target) {
+    if (!target || !canEditObjects([target.connector])) {
+        return false;
+    }
+
+    saveHistory();
+    app.drag.connectorEndpoint = target;
+    return true;
+}
+
+function updateConnectorEndpointDrag(point) {
+    const target = app.drag.connectorEndpoint;
+
+    if (!target) {
+        return;
+    }
+
+    if (target.endpoint === 'from') {
+        target.connector.fromId = null;
+        target.connector.x = point.x;
+        target.connector.y = point.y;
+    } else {
+        target.connector.toId = null;
+        target.connector.x2 = point.x;
+        target.connector.y2 = point.y;
+    }
+
+    app.drag.moved = true;
+    render();
+}
+
+function finishConnectorEndpointDrag(point) {
+    const target = app.drag.connectorEndpoint;
+
+    if (!target) {
+        return false;
+    }
+
+    const targetObject = findObjectAt(point);
+    const otherId = target.endpoint === 'from' ? target.connector.toId : target.connector.fromId;
+
+    if (targetObject && targetObject.type !== 'connector' && targetObject.id !== otherId && !targetObject.locked && canEditObjects([target.connector, targetObject])) {
+        if (target.endpoint === 'from') {
+            target.connector.fromId = targetObject.id;
+            target.connector.fromAnchor = getNearestAnchor(targetObject, {x: target.connector.x2, y: target.connector.y2});
+        } else {
+            target.connector.toId = targetObject.id;
+            target.connector.toAnchor = getNearestAnchor(targetObject, {x: target.connector.x, y: target.connector.y});
+        }
+    }
+
+    broadcastBoardState();
+    broadcastActivity('object-styled', {
+        objectId: target.connector.id,
+        objectName: getObjectName(target.connector),
+    });
+    return true;
+}
+
 function updateRotate(point, event) {
     if (!app.drag.rotateStart || !app.drag.rotateObjects) {
         return;
@@ -909,6 +1055,26 @@ function finishDraft() {
         return;
     }
 
+    if (object.type === 'template-frame' && Math.abs(object.x2 - object.x) < 320) {
+        object.x2 = object.x + 520;
+        object.y2 = object.y + 320;
+    }
+
+    if (object.type === 'swimlane' && Math.abs(object.x2 - object.x) < 260) {
+        object.x2 = object.x + 520;
+        object.y2 = object.y + 260;
+    }
+
+    if (object.type === 'kanban' && Math.abs(object.x2 - object.x) < 260) {
+        object.x2 = object.x + 460;
+        object.y2 = object.y + 240;
+    }
+
+    if (object.type === 'mind-node' && Math.abs(object.x2 - object.x) < 120) {
+        object.x2 = object.x + 180;
+        object.y2 = object.y + 96;
+    }
+
     if ('x2' in object && Math.abs(object.x2 - object.x) < 8 && Math.abs(object.y2 - object.y) < 8) {
         render();
         return;
@@ -924,7 +1090,7 @@ function finishDraft() {
     render();
     broadcastBoardState();
 
-    if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon', 'frame'].includes(object.type)) {
+    if (DRAWN_SHAPE_TOOLS.includes(object.type) || object.type === 'template-frame') {
         broadcastActivity('shape-added', {
             color: object.color,
             objectId: object.id,
@@ -1309,8 +1475,13 @@ export function initEvents() {
     });
     propertyText?.addEventListener('change', event => {
         updateSelectedProperties(object => {
-            if (object.type === 'frame') {
+            if (object.type === 'frame' || object.type === 'swimlane' || object.type === 'template-frame') {
                 object.title = event.target.value || 'Frame';
+                return;
+            }
+
+            if (object.type === 'connector') {
+                object.label = event.target.value;
                 return;
             }
 
@@ -1661,7 +1832,7 @@ export function initEvents() {
         const point = getCanvasPoint(event.clientX, event.clientY);
         const object = findObjectAt(point);
 
-        if (!object || !['text', 'sticky', 'callout', 'list', 'label', 'comment', 'frame'].includes(object.type)) {
+        if (!object || !TEXT_EDITABLE_TYPES.includes(object.type)) {
             return;
         }
 
@@ -1695,6 +1866,13 @@ export function initEvents() {
         }
 
         if (app.currentTool === 'select') {
+            const connectorEndpoint = getConnectorEndpointAt(point);
+
+            if (beginConnectorEndpointDrag(connectorEndpoint)) {
+                app.drag.last = point;
+                return;
+            }
+
             if (getRotateHandleAt(point) && beginRotate(point)) {
                 app.drag.last = point;
                 return;
@@ -1790,7 +1968,7 @@ export function initEvents() {
             return;
         }
 
-        if (['rectangle', 'ellipse', 'diamond', 'polygon', 'line', 'arrow'].includes(app.currentTool)) {
+        if (DRAWN_SHAPE_TOOLS.includes(app.currentTool)) {
             startShape(point);
             return;
         }
@@ -1817,6 +1995,10 @@ export function initEvents() {
         }
 
         if (app.currentTool === 'select') {
+            updateConnectorEndpointDrag(point);
+            if (app.drag.connectorEndpoint) {
+                return;
+            }
             updateRotate(point, e);
             if (app.drag.rotateStart) {
                 return;
@@ -1844,7 +2026,7 @@ export function initEvents() {
             return;
         }
 
-        if (['rectangle', 'ellipse', 'diamond', 'polygon', 'line', 'arrow', 'frame'].includes(app.currentTool)) {
+        if (DRAWN_SHAPE_TOOLS.includes(app.currentTool)) {
             updateDraftShape(point);
             return;
         }
@@ -1890,6 +2072,9 @@ export function initEvents() {
                 objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
             });
         }
+        if (app.currentTool === 'select' && app.drag.connectorEndpoint && app.drag.moved) {
+            finishConnectorEndpointDrag(getCanvasPoint(app.mouse.x, app.mouse.y));
+        }
         if (app.currentTool === 'select' && app.drag.resizeHandle && app.drag.moved) {
             const selectedObjects = getSelectedObjects();
             broadcastBoardState();
@@ -1898,7 +2083,7 @@ export function initEvents() {
                 objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
             });
         }
-        if (app.currentTool === 'select' && app.drag.moved) {
+        if (app.currentTool === 'select' && app.drag.moved && !app.drag.connectorEndpoint) {
             const selectedObjects = getSelectedObjects();
             broadcastBoardState();
             if (!app.drag.resizeHandle) {
@@ -1917,6 +2102,7 @@ export function initEvents() {
         app.drag.rotateStart = null;
         app.drag.rotateObjects = null;
         app.drag.connectorStartId = null;
+        app.drag.connectorEndpoint = null;
     });
 
     window.addEventListener('keydown', event => {
@@ -1926,6 +2112,12 @@ export function initEvents() {
 
         const modifier = event.metaKey || event.ctrlKey;
         const selectedObjects = getSelectedObjects();
+
+        if (event.key === 'Tab' && selectedObjects.length === 1 && selectedObjects[0].type === 'mind-node') {
+            event.preventDefault();
+            addMindMapChild(selectedObjects[0]);
+            return;
+        }
 
         if (modifier && event.key.toLowerCase() === 'z') {
             event.preventDefault();

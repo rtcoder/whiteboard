@@ -5,6 +5,11 @@ import {createId, getCanvasPoint} from './utils.js';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const bitmapUrlCache = new WeakMap();
 const FILL_EDGE_CLEANUP_MIN_NEIGHBORS = 2;
+const BASE_SHAPE_TYPES = ['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'];
+const FLOW_SHAPE_TYPES = ['flow-process', 'flow-decision', 'flow-terminator', 'flow-database'];
+const DIAGRAM_OBJECT_TYPES = ['mind-node', 'swimlane', 'kanban', 'template-frame'];
+const SHAPE_TYPES = [...BASE_SHAPE_TYPES, ...FLOW_SHAPE_TYPES, ...DIAGRAM_OBJECT_TYPES];
+const ANCHORS = ['top', 'right', 'bottom', 'left'];
 
 function cloneImageData(imageData) {
     return new ImageData(new Uint8ClampedArray(imageData.data), imageData.width, imageData.height);
@@ -246,11 +251,11 @@ function drawShape(object) {
     app.ctx.strokeStyle = object.color;
     app.ctx.fillStyle = object.fill || 'transparent';
 
-    if (object.type === 'rectangle') {
+    if (object.type === 'rectangle' || object.type === 'flow-process') {
         app.ctx.rect(x, y, width, height);
-    } else if (object.type === 'ellipse') {
+    } else if (object.type === 'ellipse' || object.type === 'flow-terminator' || object.type === 'mind-node') {
         app.ctx.ellipse(x + width / 2, y + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
-    } else if (object.type === 'diamond') {
+    } else if (object.type === 'diamond' || object.type === 'flow-decision') {
         getShapePoints(object).forEach((point, index) => {
             if (index === 0) {
                 app.ctx.moveTo(point.x, point.y);
@@ -268,6 +273,16 @@ function drawShape(object) {
             }
         });
         app.ctx.closePath();
+    } else if (object.type === 'flow-database') {
+        const curve = Math.min(24, height * 0.22);
+        app.ctx.ellipse(x + width / 2, y + curve, width / 2, curve, 0, 0, Math.PI * 2);
+        app.ctx.moveTo(x, y + curve);
+        app.ctx.lineTo(x, y + height - curve);
+        app.ctx.ellipse(x + width / 2, y + height - curve, width / 2, curve, 0, 0, Math.PI);
+        app.ctx.moveTo(x + width, y + curve);
+        app.ctx.lineTo(x + width, y + height - curve);
+    } else if (object.type === 'swimlane' || object.type === 'kanban' || object.type === 'template-frame') {
+        app.ctx.rect(x, y, width, height);
     } else if (object.type === 'line' || object.type === 'arrow') {
         app.ctx.moveTo(object.x, object.y);
         app.ctx.lineTo(object.x2, object.y2);
@@ -281,6 +296,17 @@ function drawShape(object) {
 
     if (object.type === 'arrow') {
         drawArrowHead({x: object.x, y: object.y}, {x: object.x2, y: object.y2}, object.color, object.lineWidth);
+    }
+
+    if (object.text || object.title) {
+        app.ctx.fillStyle = object.textColor || '#0f172a';
+        app.ctx.font = `700 ${object.fontSize || 16}px Inter, system-ui, sans-serif`;
+        app.ctx.textBaseline = 'middle';
+        app.ctx.textAlign = 'center';
+        wrapText(object.text || object.title, 18).slice(0, 3).forEach((line, index, lines) => {
+            app.ctx.fillText(line, x + width / 2, y + height / 2 + (index - (lines.length - 1) / 2) * (object.fontSize || 16) * 1.25);
+        });
+        app.ctx.textAlign = 'start';
     }
 }
 
@@ -419,7 +445,7 @@ function getRawBounds(object) {
         };
     }
 
-    if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'].includes(object.type)) {
+    if (SHAPE_TYPES.includes(object.type)) {
         const x = Math.min(object.x, object.x2);
         const y = Math.min(object.y, object.y2);
         return {
@@ -630,26 +656,69 @@ function isPointInsideObject(point, object) {
 
     const localPoint = getLocalPoint(point, object);
 
-    if (['rectangle', 'ellipse', 'diamond', 'polygon'].includes(object.type)) {
+    if (['rectangle', 'ellipse', 'diamond', 'polygon', ...FLOW_SHAPE_TYPES, 'mind-node'].includes(object.type)) {
         return isPointInsideFillableObject(localPoint, object);
     }
 
     return isPointInBounds(localPoint, bounds);
 }
 
-function getConnectorEndpoints(object) {
+export function getConnectorEndpoints(object) {
     const fromObject = app.objects.find(item => item.id === object.fromId);
     const toObject = app.objects.find(item => item.id === object.toId);
     const fallbackFrom = {x: object.x, y: object.y};
     const fallbackTo = {x: object.x2, y: object.y2};
 
     return {
-        from: fromObject && toObject ? getConnectionPoint(fromObject, toObject) : fallbackFrom,
-        to: fromObject && toObject ? getConnectionPoint(toObject, fromObject) : fallbackTo,
+        from: fromObject
+            ? toObject
+                ? getConnectionPoint(fromObject, toObject, object.fromAnchor)
+                : getAnchorPoint(fromObject, object.fromAnchor || 'right')
+            : fallbackFrom,
+        to: toObject
+            ? fromObject
+                ? getConnectionPoint(toObject, fromObject, object.toAnchor)
+                : getAnchorPoint(toObject, object.toAnchor || 'left')
+            : fallbackTo,
     };
 }
 
-function getConnectionPoint(sourceObject, targetObject) {
+function getAnchorPoint(sourceObject, anchor) {
+    const bounds = getRawBounds(sourceObject);
+
+    if (!bounds) {
+        return getObjectCenter(sourceObject);
+    }
+
+    const points = {
+        top: {x: bounds.x + bounds.width / 2, y: bounds.y},
+        right: {x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2},
+        bottom: {x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height},
+        left: {x: bounds.x, y: bounds.y + bounds.height / 2},
+    };
+
+    return points[anchor] || getObjectCenter(sourceObject);
+}
+
+export function getNearestAnchor(sourceObject, targetPoint) {
+    const anchors = ANCHORS.map(anchor => ({
+        anchor,
+        point: getAnchorPoint(sourceObject, anchor),
+    }));
+
+    anchors.sort((a, b) => (
+        Math.hypot(a.point.x - targetPoint.x, a.point.y - targetPoint.y) -
+        Math.hypot(b.point.x - targetPoint.x, b.point.y - targetPoint.y)
+    ));
+
+    return anchors[0]?.anchor || 'right';
+}
+
+function getConnectionPoint(sourceObject, targetObject, fixedAnchor = null) {
+    if (fixedAnchor) {
+        return getAnchorPoint(sourceObject, fixedAnchor);
+    }
+
     const bounds = getRawBounds(sourceObject);
     const source = getObjectCenter(sourceObject);
     const target = getObjectCenter(targetObject);
@@ -681,6 +750,15 @@ function getShapePoints(object) {
     const height = Math.abs(object.y2 - object.y);
 
     if (object.type === 'diamond') {
+        return [
+            {x: x + width / 2, y},
+            {x: x + width, y: y + height / 2},
+            {x: x + width / 2, y: y + height},
+            {x, y: y + height / 2},
+        ];
+    }
+
+    if (object.type === 'flow-decision') {
         return [
             {x: x + width / 2, y},
             {x: x + width, y: y + height / 2},
@@ -721,7 +799,7 @@ function isPointInsidePolygon(point, points) {
 }
 
 function isPointInsideFillableObject(point, object) {
-    if (object.type === 'rectangle') {
+    if (object.type === 'rectangle' || object.type === 'flow-process') {
         const x = Math.min(object.x, object.x2);
         const y = Math.min(object.y, object.y2);
         const width = Math.abs(object.x2 - object.x);
@@ -730,7 +808,7 @@ function isPointInsideFillableObject(point, object) {
         return point.x >= x && point.x <= x + width && point.y >= y && point.y <= y + height;
     }
 
-    if (object.type === 'ellipse') {
+    if (object.type === 'ellipse' || object.type === 'flow-terminator' || object.type === 'mind-node') {
         const x = Math.min(object.x, object.x2);
         const y = Math.min(object.y, object.y2);
         const radiusX = Math.abs(object.x2 - object.x) / 2;
@@ -748,8 +826,12 @@ function isPointInsideFillableObject(point, object) {
         return normalizedX * normalizedX + normalizedY * normalizedY <= 1;
     }
 
-    if (object.type === 'diamond' || object.type === 'polygon') {
+    if (object.type === 'diamond' || object.type === 'polygon' || object.type === 'flow-decision') {
         return isPointInsidePolygon(point, getShapePoints(object));
+    }
+
+    if (object.type === 'flow-database') {
+        return isPointInBounds(point, getRawBounds(object), 0);
     }
 
     return false;
@@ -977,31 +1059,68 @@ function createSvgShape(object) {
         'stroke-linejoin': 'round',
     };
 
-    if (object.type === 'rectangle') {
-        return createSvgElement('rect', {
+    const addCenteredLabel = (group, label, maxChars = 22) => {
+        if (!label) {
+            return;
+        }
+
+        const text = createSvgElement('text', {
+            x: x + width / 2,
+            y: y + height / 2,
+            fill: object.textColor || '#0f172a',
+            'font-size': object.fontSize || 16,
+            'font-family': 'Inter, system-ui, sans-serif',
+            'font-weight': object.fontWeight || 750,
+            'text-anchor': 'middle',
+            'dominant-baseline': 'middle',
+        });
+        wrapText(label, maxChars).slice(0, 3).forEach((line, index, lines) => {
+            const tspan = createSvgElement('tspan', {
+                x: x + width / 2,
+                dy: index === 0 ? `${-(lines.length - 1) * 0.6}em` : '1.2em',
+            });
+            tspan.textContent = line;
+            text.appendChild(tspan);
+        });
+        group.appendChild(text);
+    };
+
+    if (object.type === 'rectangle' || object.type === 'flow-process') {
+        const group = createSvgElement('g');
+        group.appendChild(createSvgElement('rect', {
             ...common,
             x,
             y,
             width,
             height,
-        });
+            rx: object.type === 'flow-process' ? 8 : undefined,
+            ry: object.type === 'flow-process' ? 8 : undefined,
+        }));
+        addCenteredLabel(group, object.text);
+        return group;
     }
 
-    if (object.type === 'ellipse') {
-        return createSvgElement('ellipse', {
+    if (object.type === 'ellipse' || object.type === 'flow-terminator' || object.type === 'mind-node') {
+        const group = createSvgElement('g');
+        group.appendChild(createSvgElement('ellipse', {
             ...common,
             cx: x + width / 2,
             cy: y + height / 2,
             rx: width / 2,
             ry: height / 2,
-        });
+        }));
+        addCenteredLabel(group, object.text);
+        return group;
     }
 
-    if (object.type === 'diamond') {
-        return createSvgElement('polygon', {
+    if (object.type === 'diamond' || object.type === 'flow-decision') {
+        const group = createSvgElement('g');
+        group.appendChild(createSvgElement('polygon', {
             ...common,
             points: getShapePoints(object).map(point => `${point.x},${point.y}`).join(' '),
-        });
+        }));
+        addCenteredLabel(group, object.text, 16);
+        return group;
     }
 
     if (object.type === 'polygon') {
@@ -1009,6 +1128,163 @@ function createSvgShape(object) {
             ...common,
             points: getShapePoints(object).map(point => `${point.x},${point.y}`).join(' '),
         });
+    }
+
+    if (object.type === 'flow-database') {
+        const curve = Math.min(26, height * 0.22);
+        const group = createSvgElement('g');
+        group.appendChild(createSvgElement('path', {
+            ...common,
+            d: `M ${x} ${y + curve} C ${x} ${y - curve * 0.15} ${x + width} ${y - curve * 0.15} ${x + width} ${y + curve} V ${y + height - curve} C ${x + width} ${y + height + curve * 0.15} ${x} ${y + height + curve * 0.15} ${x} ${y + height - curve} Z`,
+        }));
+        group.appendChild(createSvgElement('path', {
+            d: `M ${x} ${y + curve} C ${x} ${y + curve * 2.1} ${x + width} ${y + curve * 2.1} ${x + width} ${y + curve}`,
+            fill: 'none',
+            stroke: object.color,
+            'stroke-width': object.lineWidth,
+        }));
+        addCenteredLabel(group, object.text);
+        return group;
+    }
+
+    if (object.type === 'swimlane') {
+        const group = createSvgElement('g');
+        group.appendChild(createSvgElement('rect', {
+            ...common,
+            x,
+            y,
+            width,
+            height,
+            rx: 8,
+            ry: 8,
+        }));
+        group.appendChild(createSvgElement('rect', {
+            x,
+            y,
+            width,
+            height: Math.min(48, height * 0.22),
+            rx: 8,
+            ry: 8,
+            fill: object.headerFill || 'rgba(15, 23, 42, 0.06)',
+            stroke: 'none',
+        }));
+        const lanes = Math.max(2, object.lanes || 3);
+        for (let index = 1; index < lanes; index += 1) {
+            const lineX = x + width / lanes * index;
+            group.appendChild(createSvgElement('line', {
+                x1: lineX,
+                y1: y + Math.min(48, height * 0.22),
+                x2: lineX,
+                y2: y + height,
+                stroke: object.color,
+                'stroke-width': 1.2,
+                opacity: 0.45,
+            }));
+        }
+        addCenteredLabel(group, object.title || 'Swimlane', 24);
+        return group;
+    }
+
+    if (object.type === 'kanban') {
+        const group = createSvgElement('g');
+        group.appendChild(createSvgElement('rect', {
+            ...common,
+            x,
+            y,
+            width,
+            height,
+            rx: 8,
+            ry: 8,
+        }));
+        const columns = object.columns || ['To do', 'Doing', 'Done'];
+        columns.forEach((column, index) => {
+            const colX = x + width / columns.length * index;
+            const colWidth = width / columns.length;
+            if (index > 0) {
+                group.appendChild(createSvgElement('line', {
+                    x1: colX,
+                    y1: y,
+                    x2: colX,
+                    y2: y + height,
+                    stroke: object.color,
+                    'stroke-width': 1,
+                    opacity: 0.35,
+                }));
+            }
+            const text = createSvgElement('text', {
+                x: colX + colWidth / 2,
+                y: y + 24,
+                fill: object.textColor || '#0f172a',
+                'font-size': 13,
+                'font-family': 'Inter, system-ui, sans-serif',
+                'font-weight': 800,
+                'text-anchor': 'middle',
+            });
+            text.textContent = column;
+            group.appendChild(text);
+            group.appendChild(createSvgElement('rect', {
+                x: colX + 12,
+                y: y + 42,
+                width: Math.max(24, colWidth - 24),
+                height: 34,
+                rx: 6,
+                ry: 6,
+                fill: '#ffffff',
+                stroke: 'rgba(15, 23, 42, 0.12)',
+                'stroke-width': 1,
+            }));
+        });
+        return group;
+    }
+
+    if (object.type === 'template-frame') {
+        const group = createSvgElement('g');
+        group.appendChild(createSvgElement('rect', {
+            ...common,
+            x,
+            y,
+            width,
+            height,
+            rx: 10,
+            ry: 10,
+            'stroke-dasharray': '10 7',
+        }));
+        const title = createSvgElement('text', {
+            x: x + 16,
+            y: y + 28,
+            fill: object.textColor || '#334155',
+            'font-size': 18,
+            'font-family': 'Inter, system-ui, sans-serif',
+            'font-weight': 850,
+        });
+        title.textContent = object.title || 'Template';
+        group.appendChild(title);
+        (object.sections || []).forEach((section, index) => {
+            const sectionWidth = width / Math.max(1, object.sections.length);
+            const sectionX = x + sectionWidth * index + 12;
+            const sectionLabel = createSvgElement('text', {
+                x: sectionX,
+                y: y + 62,
+                fill: object.textColor || '#475569',
+                'font-size': 13,
+                'font-family': 'Inter, system-ui, sans-serif',
+                'font-weight': 750,
+            });
+            sectionLabel.textContent = section;
+            group.appendChild(sectionLabel);
+            group.appendChild(createSvgElement('rect', {
+                x: sectionX,
+                y: y + 76,
+                width: Math.max(20, sectionWidth - 24),
+                height: Math.max(20, height - 94),
+                rx: 8,
+                ry: 8,
+                fill: 'rgba(255, 255, 255, 0.62)',
+                stroke: 'rgba(71, 85, 105, 0.16)',
+                'stroke-width': 1,
+            }));
+        });
+        return group;
     }
 
     if (object.type === 'line' || object.type === 'arrow') {
@@ -1198,6 +1474,7 @@ function createSvgConnector(object) {
         .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
         .join(' ');
     const group = createSvgElement('g');
+    object.route = routePoints.map(point => ({x: Math.round(point.x), y: Math.round(point.y)}));
 
     group.appendChild(createSvgElement('path', {
         d: pathData,
@@ -1227,6 +1504,27 @@ function createSvgConnector(object) {
             points: arrowPoints.map(point => `${point.x},${point.y}`).join(' '),
             fill: object.color,
         }));
+    }
+
+    if (object.label) {
+        const labelPoint = routePoints[Math.floor(routePoints.length / 2)] || {
+            x: (endpoints.from.x + endpoints.to.x) / 2,
+            y: (endpoints.from.y + endpoints.to.y) / 2,
+        };
+        const text = createSvgElement('text', {
+            x: labelPoint.x,
+            y: labelPoint.y - 8,
+            fill: object.textColor || object.color,
+            'font-size': object.fontSize || 14,
+            'font-family': 'Inter, system-ui, sans-serif',
+            'font-weight': 750,
+            'text-anchor': 'middle',
+            'paint-order': 'stroke',
+            stroke: '#ffffff',
+            'stroke-width': 4,
+        });
+        text.textContent = object.label;
+        group.appendChild(text);
     }
 
     return group;
@@ -1326,7 +1624,7 @@ function appendSvgObject(object, parent = app.svg) {
         element = createSvgConnector(object);
     } else if (object.type === 'path') {
         element = createSvgPath(object);
-    } else if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'].includes(object.type)) {
+    } else if (SHAPE_TYPES.includes(object.type)) {
         element = createSvgShape(object);
     } else if (['text', 'sticky', 'callout', 'list', 'label'].includes(object.type)) {
         element = createSvgTextObject(object);
@@ -1445,7 +1743,7 @@ export function render(showSelection = true) {
             // These are rendered in SVG; canvas export keeps the current raster-safe layer.
         } else if (object.type === 'path') {
             drawPath(object);
-        } else if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'].includes(object.type)) {
+        } else if (SHAPE_TYPES.includes(object.type)) {
             drawShape(object);
         } else if (['text', 'sticky', 'callout', 'list', 'label'].includes(object.type)) {
             drawTextObject(object);
@@ -1465,7 +1763,7 @@ export function render(showSelection = true) {
     if (app.draftObject) {
         if (app.draftObject.type === 'path') {
             drawPath(app.draftObject);
-        } else if (['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'].includes(app.draftObject.type)) {
+        } else if (SHAPE_TYPES.includes(app.draftObject.type)) {
             drawShape(app.draftObject);
         }
     }
@@ -1494,6 +1792,33 @@ export function createPath(point, color, lineWidth, opacity = 1) {
 }
 
 export function createShape(type, point, color, lineWidth) {
+    const isFlow = FLOW_SHAPE_TYPES.includes(type);
+    const isDiagram = DIAGRAM_OBJECT_TYPES.includes(type);
+    const templatePresets = {
+        retro: {title: 'Retro', sections: ['Went well', 'Needs work', 'Actions']},
+        journey: {title: 'User journey', sections: ['Discover', 'Evaluate', 'Use', 'Improve']},
+        architecture: {title: 'Architecture sketch', sections: ['Client', 'Services', 'Data']},
+        brainstorming: {title: 'Brainstorming', sections: ['Ideas', 'Themes', 'Next steps']},
+    };
+
+    if (type.startsWith('template-')) {
+        const template = type.replace('template-', '');
+        const preset = templatePresets[template] || {title: 'Template', sections: ['Notes', 'Decisions']};
+        return {
+            id: createId('template-frame'),
+            type: 'template-frame',
+            template,
+            x: point.x,
+            y: point.y,
+            x2: point.x,
+            y2: point.y,
+            color: '#64748b',
+            fill: 'rgba(248, 250, 252, 0.72)',
+            lineWidth: 2,
+            ...preset,
+        };
+    }
+
     return {
         id: createId(type),
         type,
@@ -1501,8 +1826,19 @@ export function createShape(type, point, color, lineWidth) {
         y: point.y,
         x2: point.x,
         y2: point.y,
-        color,
-        lineWidth,
+        color: isFlow || isDiagram ? '#475569' : color,
+        fill: isFlow || isDiagram ? 'rgba(248, 250, 252, 0.86)' : undefined,
+        lineWidth: isFlow || isDiagram ? Math.max(2, Math.round(lineWidth * 0.25)) : lineWidth,
+        text: {
+            'flow-process': 'Process',
+            'flow-decision': 'Decision',
+            'flow-terminator': 'Start / end',
+            'flow-database': 'Database',
+            'mind-node': 'Mind node',
+        }[type],
+        title: type === 'swimlane' ? 'Swimlane' : undefined,
+        lanes: type === 'swimlane' ? 3 : undefined,
+        columns: type === 'kanban' ? ['To do', 'Doing', 'Done'] : undefined,
     };
 }
 
@@ -1557,12 +1893,16 @@ export function createImageObject(point, src, width, height) {
 export function createConnector(fromObject, toObject, color = app.fillColor) {
     const from = getObjectCenter(fromObject);
     const to = getObjectCenter(toObject);
+    const fromAnchor = getNearestAnchor(fromObject, to);
+    const toAnchor = getNearestAnchor(toObject, from);
 
     return {
         id: createId('connector'),
         type: 'connector',
         fromId: fromObject.id,
         toId: toObject.id,
+        fromAnchor,
+        toAnchor,
         x: from.x,
         y: from.y,
         x2: to.x,
@@ -1571,6 +1911,8 @@ export function createConnector(fromObject, toObject, color = app.fillColor) {
         lineWidth: Math.max(3, Math.round(app.lineWidth * 0.45)),
         connectorStyle: 'orthogonal',
         endMarker: 'arrow',
+        label: '',
+        route: [],
     };
 }
 

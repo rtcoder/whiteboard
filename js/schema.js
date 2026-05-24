@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export function migrateObject(object) {
     const migrated = {
@@ -17,6 +17,10 @@ export function migrateObject(object) {
         migrated.lineWidth = migrated.lineWidth || 3;
         migrated.connectorStyle = migrated.connectorStyle || 'orthogonal';
         migrated.endMarker = migrated.endMarker || 'arrow';
+        migrated.fromAnchor = migrated.fromAnchor || null;
+        migrated.toAnchor = migrated.toAnchor || null;
+        migrated.label = migrated.label || '';
+        migrated.route = migrated.route || [];
     }
 
     if (migrated.type === 'image') {
