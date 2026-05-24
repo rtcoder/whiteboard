@@ -194,6 +194,8 @@ function send(message) {
     socket.send(payload);
 }
 
+let syncedStatusTimer = null;
+
 function setConnectionStatus(state) {
     app.connectionState = state;
     const status = document.querySelector('.connection-status');
@@ -208,6 +210,8 @@ function setConnectionStatus(state) {
         connected: 'Connected',
         reconnecting: 'Reconnecting',
         offline: 'Offline',
+        saving: 'Saving\u2026',
+        synced: 'Synced',
     }[state] || state;
 }
 
@@ -256,6 +260,7 @@ export function broadcastBoardState({mode = 'merge'} = {}) {
             revision,
             operation,
         });
+        setConnectionStatus('saving');
         return;
     }
 
@@ -484,6 +489,9 @@ export function initNetwork({render, onPeersChange}) {
             logNetwork('board-state acknowledged', {
                 revision: currentRevision,
             });
+            setConnectionStatus('synced');
+            clearTimeout(syncedStatusTimer);
+            syncedStatusTimer = setTimeout(() => setConnectionStatus('connected'), 2000);
             return;
         }
 

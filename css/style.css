@@ -381,6 +381,28 @@ svg, img {
     background: #ef4444;
 }
 
+.connection-status[data-state="saving"] {
+    color: #92400e;
+}
+
+.connection-status[data-state="saving"]::before {
+    background: #f59e0b;
+    animation: status-pulse 0.8s ease-in-out infinite alternate;
+}
+
+.connection-status[data-state="synced"] {
+    color: #166534;
+}
+
+.connection-status[data-state="synced"]::before {
+    background: #22c55e;
+}
+
+@keyframes status-pulse {
+    from { opacity: 1; }
+    to   { opacity: 0.35; }
+}
+
 .presence {
     padding-left: 8px;
 }
