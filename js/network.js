@@ -178,7 +178,7 @@ function send(message) {
             type: message.type,
             readyState: socket?.readyState,
         });
-        return;
+        return false;
     }
 
     const payload = JSON.stringify(message);
@@ -192,6 +192,7 @@ function send(message) {
         });
     }
     socket.send(payload);
+    return true;
 }
 
 let syncedStatusTimer = null;
@@ -255,12 +256,15 @@ export function broadcastBoardState({mode = 'merge'} = {}) {
             deleteIds: operation.deleteIds.length,
             orderChanged: Boolean(operation.orderIds),
         });
-        send({
+        const sent = send({
             type: 'board-operation',
             revision,
             operation,
         });
-        setConnectionStatus('saving');
+        if (sent) {
+            clearTimeout(syncedStatusTimer);
+            setConnectionStatus('saving');
+        }
         return;
     }
 
