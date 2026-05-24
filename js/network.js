@@ -264,6 +264,7 @@ export function broadcastBoardState({mode = 'merge'} = {}) {
             syncLocalObjectCache(objects);
             clearTimeout(syncedStatusTimer);
             setConnectionStatus('saving');
+            syncedStatusTimer = setTimeout(() => setConnectionStatus('connected'), 8000);
         }
         return;
     }
