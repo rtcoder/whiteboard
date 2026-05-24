@@ -1,4 +1,4 @@
-import {app} from './main.js';
+import {app} from './app.js';
 
 export function hexToRgba(hex) {
     hex = hex.replace(/^#/, '');

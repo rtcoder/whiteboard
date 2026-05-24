@@ -1,4 +1,4 @@
-import {app} from './main.js';
+import {app} from './app.js';
 import {addActivityEntries, refreshActivityLog} from './activity.js';
 import {CURRENT_SCHEMA_VERSION, migrateObject, migrateObjects} from './schema.js';
 import {getUserAvatar} from './utils.js';

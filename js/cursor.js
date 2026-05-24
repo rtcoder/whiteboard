@@ -1,4 +1,4 @@
-import {app} from './main.js';
+import {app} from './app.js';
 
 const cursor = document.getElementById('cursor');
 

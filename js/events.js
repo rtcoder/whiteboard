@@ -49,7 +49,8 @@ import {
     undo,
 } from './drawing.js';
 import {getObjectName} from './activity.js';
-import {app, setMousePosition} from './main.js';
+import {setMousePosition} from './main.js';
+import {app} from './app.js';
 import {broadcastActivity, broadcastBoardState, sendCursorPosition, sendLaserPosition, sendObjectLockState, sendSelectionState, sendReaction} from './network.js';
 import {activateMovingToolbar, deactivateMovingToolbar, hideToolbar, moveToolbar, showToolbar} from './toolbar.js';
 import {clampZoomOffset, getCanvasPoint, getCanvasTransform, hexToRgba} from './utils.js';

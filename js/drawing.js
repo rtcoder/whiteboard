@@ -1,4 +1,4 @@
-import {app} from './main.js';
+import {app} from './app.js';
 import {broadcastBoardState} from './network.js';
 import {createId, getCanvasPoint} from './utils.js';
 
