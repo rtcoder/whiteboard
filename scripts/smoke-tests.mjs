@@ -6,6 +6,7 @@ import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const {
     applyBoardOperation,
+    getOversizedBitmapIds,
     getLockConflicts,
     getOperationObjectIds,
     mergeBoardState,
@@ -47,13 +48,16 @@ const legacyConnector = migrateObject({
 assert.equal(legacyConnector.connectorStyle, 'orthogonal');
 assert.equal(legacyConnector.endMarker, 'arrow');
 assert.equal(legacyConnector.lineWidth, 3);
+assert.equal(legacyConnector.label, '');
+assert.deepEqual(legacyConnector.route, []);
 
 const migratedObjects = migrateObjects([
     {id: 'path-old', type: 'path', points: []},
     {id: 'image-old', type: 'image', x: 0, y: 0, width: 10, height: 10},
+    {id: 'flow-old', type: 'flow-process', x: 0, y: 0, x2: 120, y2: 80},
 ]);
 
-assert.equal(migratedObjects.length, 2);
+assert.equal(migratedObjects.length, 3);
 assert.ok(migratedObjects.every(object => object.schemaVersion === CURRENT_SCHEMA_VERSION));
 
 const mergedState = mergeBoardState(
@@ -64,6 +68,7 @@ assert.deepEqual(mergedState.map(object => object.id), ['a', 'b']);
 assert.equal(mergedState[0].color, '#222');
 
 const operation = {
+    kind: 'object-created',
     upsert: [{id: 'c', type: 'text'}],
     deleteIds: ['a'],
     orderIds: ['b', 'c'],
@@ -83,5 +88,11 @@ const mockSocket = {
 assert.deepEqual(updateObjectLocks(mockRoom, mockSocket, ['b']), []);
 assert.deepEqual(getLockConflicts(mockRoom, 'two', ['b']), ['b']);
 assert.deepEqual(getLockConflicts(mockRoom, 'one', ['b']), []);
+
+assert.deepEqual(getOversizedBitmapIds([
+    {id: 'small-bitmap', type: 'bitmap', width: 100, height: 100},
+    {id: 'large-bitmap', type: 'bitmap', width: 2000, height: 1000},
+    {id: 'shape', type: 'rectangle', width: 5000, height: 5000},
+]), ['large-bitmap']);
 
 console.log('Smoke tests passed');

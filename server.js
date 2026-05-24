@@ -763,6 +763,7 @@ if (require.main === module) {
 
 module.exports = {
     applyBoardOperation,
+    getOversizedBitmapIds,
     getLockConflicts,
     getOperationObjectIds,
     mergeBoardState,

@@ -68,12 +68,12 @@ This file tracks implemented tools, planned features, and useful next steps for 
 
 ## 7. Diagrams And Team Work
 
-- [ ] Ready-made flowchart shapes.
-- [ ] Mind map node.
-- [ ] Connector with automatic routing.
-- [ ] Swimlanes.
-- [ ] Table/kanban mini-board.
-- [ ] Templates: retro, user journey, architecture sketch, brainstorming.
+- [x] Ready-made flowchart shapes.
+- [x] Mind map node.
+- [x] Connector with automatic routing.
+- [x] Swimlanes.
+- [x] Table/kanban mini-board.
+- [x] Templates: retro, user journey, architecture sketch, brainstorming.
 
 ## 8. Export And Import
 
@@ -108,54 +108,54 @@ These groups track the remaining "tip-top" work. Each group should land as a foc
 - [x] Client-side object lock state.
 - [x] Conflict rejection for locked objects.
 - [x] Hide remote cursor while laser pointer is active.
-- [ ] Visible "Locked by user" badge on board objects.
-- [ ] Connection status: Connecting, Connected, Reconnecting, Offline.
-- [ ] Reconnect recovery flow.
-- [ ] Peer cleanup for cursors, lasers, selection badges, and locks.
+- [x] Visible "Locked by user" badge on board objects.
+- [x] Connection status: Connecting, Connected, Reconnecting, Offline.
+- [x] Reconnect recovery flow.
+- [x] Peer cleanup for cursors, lasers, selection badges, and locks.
 
 ### Editing UX And Properties
 
 - [x] Properties panel for stroke, fill, stroke size, rotation, lock.
 - [x] Properties panel for text, font size, opacity, connector style, arrowhead.
-- [ ] Inline text editor overlay instead of prompt.
-- [ ] Mixed values in multi-select properties.
-- [ ] Keyboard shortcuts for duplicate, group, ungroup, lock, unlock.
-- [ ] Shortcut suppression while editing text.
-- [ ] Better resize and rotate support for all object types.
+- [x] Inline text editor overlay instead of prompt.
+- [x] Mixed values in multi-select properties.
+- [x] Keyboard shortcuts for duplicate, group, ungroup, lock, unlock.
+- [x] Shortcut suppression while editing text.
+- [x] Better resize and rotate support for all object types.
 
 ### Fill And Drawing
 
 - [x] System-level safe fill tolerance.
 - [x] Bitmap fill stored as board object and synced.
-- [ ] Fill edge cleanup preset.
-- [ ] Smaller bitmap fill payloads.
+- [x] Fill edge cleanup preset.
+- [x] Smaller bitmap fill payloads.
 - [ ] Fill undo/redo as operation, not full replace.
-- [ ] Freehand path simplification.
-- [ ] Pen/pencil smoothing.
-- [ ] Point eraser for freehand paths.
+- [x] Freehand path simplification.
+- [x] Pen/pencil smoothing.
+- [x] Point eraser for freehand paths.
 
 ### Diagram Tools
 
-- [ ] Flowchart process, decision, terminator, and database shapes.
-- [ ] Mind map node.
-- [ ] Automatic connector routing around objects.
-- [ ] Magnetic connector anchors.
-- [ ] Connector endpoint drag and rewire.
-- [ ] Connector labels.
-- [ ] Swimlanes.
-- [ ] Mini kanban/table object.
-- [ ] Templates for retro, user journey, architecture sketch, brainstorming.
+- [x] Flowchart process, decision, terminator, and database shapes.
+- [x] Mind map node.
+- [x] Automatic connector routing around objects.
+- [x] Magnetic connector anchors.
+- [x] Connector endpoint drag and rewire.
+- [x] Connector labels.
+- [x] Swimlanes.
+- [x] Mini kanban/table object.
+- [x] Templates for retro, user journey, architecture sketch, brainstorming.
 
 ### UI Polish And Navigation
 
 - [x] Grouped toolbar popovers.
 - [x] System tooltip positioning.
 - [x] Activity click-to-highlight object.
-- [ ] Activity search/filter.
-- [ ] Group similar activity events.
-- [ ] Drag minimap viewport.
+- [x] Activity search/filter.
+- [x] Group similar activity events.
+- [x] Drag minimap viewport.
 - [ ] Saving/synced/offline status.
-- [ ] Mobile toolbar polish.
+- [x] Mobile toolbar polish.
 
 ### Export Import And Versions
 
@@ -163,27 +163,41 @@ These groups track the remaining "tip-top" work. Each group should land as a foc
 - [x] Copy as image.
 - [x] Image import from picker, clipboard, and drag/drop.
 - [x] Basic snapshot history.
-- [ ] Export selected frame and selection consistently.
-- [ ] Paste text as text object.
-- [ ] Import basic SVG as editable objects.
-- [ ] Named snapshots and restore confirmation.
+- [x] Export selected frame and selection consistently.
+- [x] Paste text as text object.
+- [x] Import basic SVG as editable objects.
+- [x] Named snapshots and restore confirmation.
 
 ### Sync Protocol And Event Log
 
 - [x] Board operation diff for merge-mode sync.
 - [x] Full state for init/recovery.
-- [ ] Standardized operation event names.
-- [ ] Bounded server operation log.
+- [x] Standardized operation event names.
+- [x] Bounded server operation log.
 - [ ] Undo/redo as operation output.
-- [ ] Persisted room schema migration.
+- [x] Persisted room schema migration.
 
 ### Reliability And Tests
 
 - [x] Smoke tests for schema, operations, and lock conflicts.
-- [ ] Atomic room writes with backup.
-- [ ] Damaged room file recovery.
-- [ ] Message size limits.
-- [ ] Cursor/laser/operation rate limits.
-- [ ] Old empty room cleanup.
+- [x] Atomic room writes with backup.
+- [x] Damaged room file recovery.
+- [x] Message size limits.
+- [x] Cursor/laser/operation rate limits.
+- [x] Old empty room cleanup.
 - [ ] Two-client WebSocket integration tests.
 - [ ] Browser E2E coverage.
+
+## Manual QA Checklist
+
+- [ ] Create a room, join as a second user, and confirm both clients receive late-join state.
+- [ ] Draw a shape, fill it, refresh both clients, and confirm the fill persists.
+- [ ] Move, duplicate, delete, undo, and redo while a second client is connected.
+- [ ] Select one object on client A and confirm client B sees lock/presence and cannot edit it.
+- [ ] Use laser pointer and confirm the remote cursor is hidden while the laser is active.
+- [ ] Create flowchart shapes, mind nodes, swimlanes, kanban, templates, and connectors.
+- [ ] Drag connector endpoints between objects and edit connector labels.
+- [ ] Export full board, selected object, and selected frame as PNG/SVG/PDF.
+- [ ] Paste plain text, paste basic SVG, import image, and drag/drop image.
+- [ ] Create, name, restore, and sync a snapshot.
+- [ ] Check desktop and mobile viewport toolbar overflow, activity search/filter, and properties panel.
