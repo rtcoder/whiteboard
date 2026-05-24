@@ -12,7 +12,9 @@ const rooms = new Map();
 const DEBUG_WS = true;
 const DEBUG_WS_CURSOR = false;
 const MAX_ACTIVITY_ITEMS = 200;
+const MAX_OPERATION_LOG_ITEMS = 500;
 const OBJECT_LOCK_TTL_MS = 8000;
+const CURRENT_ROOM_SCHEMA_VERSION = 2;
 const mimeTypes = {
     '.css': 'text/css',
     '.html': 'text/html',
@@ -72,6 +74,8 @@ function getRoom(roomId) {
             objectLocks: new Map(),
             revision: storedRoom.revision || 0,
             activityLog: storedRoom.activityLog || [],
+            operationLog: storedRoom.operationLog || [],
+            schemaVersion: CURRENT_ROOM_SCHEMA_VERSION,
         });
     }
 
@@ -84,7 +88,14 @@ function getRoomFile(roomId) {
 
 function loadRoom(roomId) {
     try {
-        return JSON.parse(fs.readFileSync(getRoomFile(roomId), 'utf8'));
+        const room = JSON.parse(fs.readFileSync(getRoomFile(roomId), 'utf8'));
+        return {
+            schemaVersion: CURRENT_ROOM_SCHEMA_VERSION,
+            boardState: Array.isArray(room.boardState) ? room.boardState : [],
+            revision: Number.isFinite(room.revision) ? room.revision : 0,
+            activityLog: Array.isArray(room.activityLog) ? room.activityLog : [],
+            operationLog: Array.isArray(room.operationLog) ? room.operationLog : [],
+        };
     } catch {
         return {};
     }
@@ -92,9 +103,11 @@ function loadRoom(roomId) {
 
 function persistRoom(roomId, room) {
     const payload = JSON.stringify({
+        schemaVersion: CURRENT_ROOM_SCHEMA_VERSION,
         boardState: room.boardState,
         revision: room.revision,
         activityLog: room.activityLog,
+        operationLog: room.operationLog,
     });
     fs.writeFile(getRoomFile(roomId), payload, () => {});
 }
@@ -206,6 +219,24 @@ function broadcastActivity(room, sender, event) {
         type: 'activity',
         event,
     });
+}
+
+function addRoomOperation(room, clientId, message, nextBoardState) {
+    const operationEntry = {
+        id: crypto.randomUUID(),
+        type: message.type === 'board-state'
+            ? message.mode === 'replace'
+                ? 'snapshot-restored'
+                : 'object-updated'
+            : message.operation?.kind || 'object-updated',
+        revision: room.revision,
+        clientId,
+        timestamp: new Date().toISOString(),
+        operation: message.type === 'board-operation' ? message.operation : null,
+        objectCount: nextBoardState.length,
+    };
+
+    room.operationLog = [...(room.operationLog || []), operationEntry].slice(-MAX_OPERATION_LOG_ITEMS);
 }
 
 function mergeBoardState(currentObjects, incomingObjects) {
@@ -369,6 +400,7 @@ server.on('upgrade', (req, socket) => {
         clientId,
         boardState: room.boardState,
         activityLog: room.activityLog,
+        operationLog: room.operationLog,
         objectLocks: serializeObjectLocks(room),
         revision: room.revision,
         peers: [...room.clients].filter(client => client !== socket).map(client => client.clientId),
@@ -439,6 +471,7 @@ server.on('upgrade', (req, socket) => {
 
             room.boardState = nextBoardState;
             room.revision += 1;
+            addRoomOperation(room, clientId, message, room.boardState);
             logWs('room state saved', {
                 roomId,
                 revision: room.revision,
@@ -471,6 +504,7 @@ server.on('upgrade', (req, socket) => {
 
             room.boardState = nextBoardState;
             room.revision += 1;
+            addRoomOperation(room, clientId, message, room.boardState);
             logWs('room operation applied', {
                 roomId,
                 revision: room.revision,
@@ -508,6 +542,7 @@ server.on('upgrade', (req, socket) => {
             clientId,
             objects: message.type === 'board-state' ? room.boardState : message.objects,
             operation: message.type === 'board-operation' ? message.operation : message.operation,
+            operationLogLength: message.type === 'init' ? room.operationLog.length : undefined,
             revision: room.revision,
         });
     };

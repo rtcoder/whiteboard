@@ -135,7 +135,17 @@ function getBoardOperation(objects) {
     const orderChanged = orderIds.length !== localObjectOrder.length ||
         orderIds.some((id, index) => id !== localObjectOrder[index]);
 
+    const created = upsert.filter(object => !localObjectCache.has(object.id));
+    const updated = upsert.filter(object => localObjectCache.has(object.id));
+
     return {
+        kind: deleteIds.length
+            ? 'object-deleted'
+            : created.length && !updated.length
+                ? 'object-created'
+                : orderChanged && !upsert.length
+                    ? 'objects-reordered'
+                    : 'object-updated',
         upsert,
         deleteIds,
         orderIds: orderChanged ? orderIds : undefined,
