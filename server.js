@@ -573,6 +573,7 @@ server.on('upgrade', (req, socket) => {
             send(socket, {
                 type: 'board-ack',
                 revision: room.revision,
+                clientRevision: message.revision,
             });
         }
 
@@ -614,6 +615,7 @@ server.on('upgrade', (req, socket) => {
             send(socket, {
                 type: 'board-ack',
                 revision: room.revision,
+                clientRevision: message.revision,
             });
         }
 

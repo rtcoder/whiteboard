@@ -14,6 +14,7 @@ let lastLaserSentAt = 0;
 let lastObjectLockSentAt = 0;
 let localObjectCache = new Map();
 let localObjectOrder = [];
+let pendingBoardStates = new Map();
 let reconnectTimer = null;
 let reconnectAttempts = 0;
 let manualClose = false;
@@ -125,6 +126,35 @@ function getSerializedObjects() {
 function syncLocalObjectCache(objects) {
     localObjectCache = new Map(objects.map(object => [object.id, JSON.stringify(object)]));
     localObjectOrder = objects.map(object => object.id);
+}
+
+function markBoardStatePending(revision, objects) {
+    pendingBoardStates.set(revision, objects);
+    clearTimeout(syncedStatusTimer);
+    setConnectionStatus('saving');
+    syncedStatusTimer = setTimeout(() => setConnectionStatus('connected'), 8000);
+}
+
+function acknowledgeBoardState(clientRevision) {
+    const pendingRevision = pendingBoardStates.has(clientRevision)
+        ? clientRevision
+        : pendingBoardStates.keys().next().value;
+
+    if (pendingRevision !== undefined) {
+        const pendingObjects = pendingBoardStates.get(pendingRevision);
+        syncLocalObjectCache(pendingObjects);
+        pendingBoardStates.delete(pendingRevision);
+    }
+
+    clearTimeout(syncedStatusTimer);
+
+    if (pendingBoardStates.size) {
+        setConnectionStatus('saving');
+        syncedStatusTimer = setTimeout(() => setConnectionStatus('connected'), 8000);
+    } else {
+        setConnectionStatus('synced');
+        syncedStatusTimer = setTimeout(() => setConnectionStatus('connected'), 2000);
+    }
 }
 
 function getBoardOperation(objects) {
@@ -261,15 +291,11 @@ export function broadcastBoardState({mode = 'merge'} = {}) {
             operation,
         });
         if (sent) {
-            syncLocalObjectCache(objects);
-            clearTimeout(syncedStatusTimer);
-            setConnectionStatus('saving');
-            syncedStatusTimer = setTimeout(() => setConnectionStatus('connected'), 8000);
+            markBoardStatePending(revision, objects);
         }
         return;
     }
 
-    syncLocalObjectCache(objects);
     logNetwork('broadcast board-state requested', {
         revision,
         mode,
@@ -277,12 +303,15 @@ export function broadcastBoardState({mode = 'merge'} = {}) {
         bitmapObjects: objects.filter(object => object.type === 'bitmap').length,
     });
 
-    send({
+    const sent = send({
         type: 'board-state',
         revision,
         mode,
         objects,
     });
+    if (sent) {
+        markBoardStatePending(revision, objects);
+    }
 }
 
 export function broadcastActivity(kind, details = {}) {
@@ -475,14 +504,17 @@ export function initNetwork({render, onPeersChange}) {
             app.clientId = clientId;
             refreshLocalUserAvatar();
             currentRevision = message.revision || 0;
+            pendingBoardStates = new Map();
             app.objectLocks = new Map((message.objectLocks || []).map(lock => [lock.objectId, lock]));
             addActivityEntries(message.activityLog || []);
-            const boardState = message.boardState?.length ? migrateObjects(message.boardState) : loadLocalBoardState();
+            const serverBoardState = migrateObjects(message.boardState || []);
+            const hasServerSnapshot = serverBoardState.length > 0 || currentRevision > 0;
+            const boardState = hasServerSnapshot ? serverBoardState : loadLocalBoardState();
             logNetwork('apply init state', {
                 revision: currentRevision,
                 serverObjects: message.boardState?.length || 0,
                 appliedObjects: boardState.length,
-                localFallback: !message.boardState?.length && boardState.length > 0,
+                localFallback: !hasServerSnapshot && boardState.length > 0,
             });
             suppressBroadcast = true;
             app.objects = boardState.map(deserializeObject);
@@ -491,11 +523,11 @@ export function initNetwork({render, onPeersChange}) {
             suppressBroadcast = false;
             const serializedObjects = getSerializedObjects();
             saveLocalBoardState(serializedObjects);
-            syncLocalObjectCache(serializedObjects);
+            syncLocalObjectCache(hasServerSnapshot ? serializedObjects : serverBoardState);
             renderBoard();
             refreshActivityLog();
             updatePeers();
-            if (!message.boardState?.length && boardState.length) {
+            if (!hasServerSnapshot && boardState.length) {
                 broadcastBoardState({ mode: 'replace' });
             }
             return;
@@ -506,14 +538,13 @@ export function initNetwork({render, onPeersChange}) {
             logNetwork('board-state acknowledged', {
                 revision: currentRevision,
             });
-            clearTimeout(syncedStatusTimer);
-            setConnectionStatus('synced');
-            syncedStatusTimer = setTimeout(() => setConnectionStatus('connected'), 2000);
+            acknowledgeBoardState(message.clientRevision);
             return;
         }
 
         if (message.type === 'board-reject') {
             currentRevision = Math.max(currentRevision, message.revision || 0);
+            pendingBoardStates = new Map();
             clearTimeout(syncedStatusTimer);
             setConnectionStatus('connected');
             const incomingObjects = migrateObjects(message.boardState || []);
