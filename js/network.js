@@ -29,6 +29,7 @@ const LASER_SEND_INTERVAL = 40;
 const OBJECT_LOCK_SEND_INTERVAL = 1200;
 const MAX_RECONNECT_DELAY = 8000;
 const joinRequestCards = new Map();
+const pendingJoinRequests = new Map();
 
 function logNetwork(...args) {
     if (DEBUG_NETWORK) {
@@ -38,6 +39,62 @@ function logNetwork(...args) {
 
 function getRoomStorageKey() {
     return `whiteboard:roomState:${app.roomId}`;
+}
+
+function getRoomAccessTokenKey() {
+    return `whiteboard:accessToken:${app.roomId}`;
+}
+
+function renderRoomAccessControls() {
+    const hostBadge = document.querySelector('.host-badge');
+    const accessControl = document.querySelector('.room-access-control');
+    const accessSelect = document.querySelector('.room-access-select');
+    const requestsToggle = document.querySelector('.join-requests-toggle');
+
+    if (hostBadge) {
+        hostBadge.hidden = !app.isHost;
+    }
+
+    if (accessControl) {
+        accessControl.hidden = !app.isHost;
+    }
+
+    if (requestsToggle) {
+        requestsToggle.hidden = !app.isHost;
+    }
+
+    if (accessSelect) {
+        accessSelect.value = app.roomAccessMode || 'open';
+    }
+}
+
+function renderPendingJoinRequests() {
+    const list = document.querySelector('.join-requests-list');
+    const count = document.querySelector('.join-requests-count');
+
+    if (count) {
+        count.textContent = String(pendingJoinRequests.size);
+    }
+
+    if (!list) {
+        return;
+    }
+
+    list.innerHTML = '';
+
+    if (!pendingJoinRequests.size) {
+        const empty = document.createElement('li');
+        empty.className = 'activity-empty';
+        empty.textContent = 'No pending requests';
+        list.appendChild(empty);
+        return;
+    }
+
+    for (const request of pendingJoinRequests.values()) {
+        const item = document.createElement('li');
+        item.appendChild(createJoinRequestCard(request));
+        list.appendChild(item);
+    }
 }
 
 async function updateJoinRequest(request, action, card) {
@@ -62,8 +119,11 @@ async function updateJoinRequest(request, action, card) {
             throw new Error('Unable to update join request');
         }
 
+        pendingJoinRequests.delete(request.id);
+        joinRequestCards.get(request.id)?.remove();
         joinRequestCards.delete(request.id);
         card?.remove();
+        renderPendingJoinRequests();
         window.whiteboardShowStatus?.(action === 'accept' ? 'Join request accepted' : 'Join request declined');
     } catch {
         card?.classList.remove('is-resolving');
@@ -74,17 +134,7 @@ async function updateJoinRequest(request, action, card) {
     }
 }
 
-function showJoinRequest(request) {
-    if (!request?.id || joinRequestCards.has(request.id)) {
-        return;
-    }
-
-    const stack = document.querySelector('.join-request-stack');
-
-    if (!stack) {
-        return;
-    }
-
+function createJoinRequestCard(request) {
     const user = request.user || {};
     const userName = user.name || 'A guest';
     const initials = user.initials || getUserAvatar(userName, `${userName}:${request.clientId}`).initials;
@@ -107,8 +157,86 @@ function showJoinRequest(request) {
     card.querySelector('.join-request-message').textContent = `${userName} wants to join "${app.roomName || 'this whiteboard'}".`;
     card.querySelector('.accept').addEventListener('click', () => updateJoinRequest(request, 'accept', card));
     card.querySelector('.deny').addEventListener('click', () => updateJoinRequest(request, 'reject', card));
+    return card;
+}
+
+function showJoinRequest(request) {
+    if (!request?.id) {
+        return;
+    }
+
+    pendingJoinRequests.set(request.id, request);
+    renderPendingJoinRequests();
+
+    if (joinRequestCards.has(request.id)) {
+        return;
+    }
+
+    const stack = document.querySelector('.join-request-stack');
+
+    if (!stack) {
+        return;
+    }
+
+    const card = createJoinRequestCard(request);
     joinRequestCards.set(request.id, card);
     stack.prepend(card);
+}
+
+async function updateRoomAccessMode(accessMode) {
+    try {
+        const response = await fetch(`/api/rooms/${encodeURIComponent(app.roomId)}/access`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                accessMode,
+                hostId: app.clientId,
+                accessToken: localStorage.getItem(getRoomAccessTokenKey()) || '',
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error('Unable to update room access');
+        }
+
+        const metadata = await response.json();
+        app.roomAccessMode = metadata.accessMode || accessMode;
+        renderRoomAccessControls();
+        window.whiteboardShowStatus?.(`Room is now ${app.roomAccessMode}`);
+    } catch {
+        renderRoomAccessControls();
+        window.whiteboardShowStatus?.('Unable to update room access');
+    }
+}
+
+function initRoomAccessControls() {
+    renderRoomAccessControls();
+
+    const accessSelect = document.querySelector('.room-access-select');
+    accessSelect?.addEventListener('change', event => {
+        updateRoomAccessMode(event.target.value);
+    });
+
+    const panel = document.querySelector('.join-requests-panel');
+    const toggle = document.querySelector('.join-requests-toggle');
+    const close = document.querySelector('.join-requests-close');
+
+    toggle?.addEventListener('click', () => {
+        const nextHidden = !panel?.hidden;
+        if (panel) {
+            panel.hidden = nextHidden;
+        }
+        toggle.setAttribute('aria-expanded', String(!nextHidden));
+    });
+    close?.addEventListener('click', () => {
+        if (panel) {
+            panel.hidden = true;
+        }
+        toggle?.setAttribute('aria-expanded', 'false');
+    });
+    renderPendingJoinRequests();
 }
 
 function base64ToUint8(base64) {
@@ -487,6 +615,7 @@ export function initNetwork({render, onPeersChange}) {
     updatePeers = onPeersChange;
     clientId = app.clientId || clientId;
     refreshLocalUserAvatar();
+    initRoomAccessControls();
 
     if (!app.roomId) {
         return;
@@ -576,6 +705,7 @@ export function initNetwork({render, onPeersChange}) {
             app.roomHost = message.host || app.roomHost;
             app.roomAccessMode = message.accessMode || app.roomAccessMode;
             app.isHost = app.roomHost?.id === app.clientId || app.isHost;
+            renderRoomAccessControls();
             refreshLocalUserAvatar();
             currentRevision = message.revision || 0;
             pendingBoardStates = new Map();
@@ -778,6 +908,13 @@ export function initNetwork({render, onPeersChange}) {
 
         if (message.type === NetworkMessageType.Activity) {
             addActivityEntries([message.event]);
+            return;
+        }
+
+        if (message.type === NetworkMessageType.RoomAccessUpdated) {
+            app.roomAccessMode = message.accessMode || app.roomAccessMode;
+            renderRoomAccessControls();
+            window.whiteboardShowStatus?.(`Room is now ${app.roomAccessMode}`);
             return;
         }
 

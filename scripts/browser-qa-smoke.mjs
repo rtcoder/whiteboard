@@ -14,6 +14,10 @@ const requiredMarkup = [
     'value="open"',
     'value="closed"',
     'class="join-request-stack"',
+    'class="host-badge"',
+    'class="room-access-control"',
+    'class="join-requests-toggle"',
+    'id="joinRequestsPanel"',
     'class="connection-status"',
     'class="activity-toggle"',
     'class="share-button"',
@@ -28,6 +32,9 @@ const requiredStyles = [
     '.join-request-stack',
     '.join-request-card',
     '.join-request-actions .accept',
+    '.host-badge',
+    '.room-access-control',
+    '.join-requests-panel',
     '.lobby-panel.is-join-mode',
     '.connection-status[data-state="offline"]',
     '.toolbar',
@@ -54,7 +61,9 @@ for (const snippet of requiredClientFlow) {
 const requiredNetworkFlow = [
     'showJoinRequest',
     'updateJoinRequest',
+    'updateRoomAccessMode',
     'NetworkMessageType.JoinRequest',
+    'NetworkMessageType.RoomAccessUpdated',
     'whiteboard:accessToken',
 ];
 

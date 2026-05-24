@@ -48,6 +48,7 @@ body.lobby-active .laser-layer,
 body.lobby-active .join-request-stack,
 body.lobby-active .minimap,
 body.lobby-active .activity-panel,
+body.lobby-active .join-requests-panel,
 body.lobby-active .snapshot-panel,
 body.lobby-active .properties-panel {
     display: none;
@@ -316,6 +317,100 @@ body.lobby-active .lobby {
     cursor: wait;
 }
 
+.host-badge,
+.join-requests-toggle,
+.room-access-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 34px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.82);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 850;
+}
+
+.host-badge {
+    padding: 0 11px;
+    border-color: rgba(37, 99, 235, 0.22);
+    color: #1d4ed8;
+}
+
+.room-access-control {
+    padding: 0 6px 0 11px;
+}
+
+.room-access-control span {
+    color: var(--muted);
+}
+
+.room-access-select {
+    height: 24px;
+    border: 0;
+    border-radius: 999px;
+    background: #eef4ff;
+    color: var(--text);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 850;
+}
+
+.join-requests-toggle {
+    padding: 0 10px;
+    cursor: pointer;
+}
+
+.join-requests-count {
+    display: grid;
+    min-width: 20px;
+    height: 20px;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+}
+
+.join-requests-panel {
+    position: fixed;
+    top: 72px;
+    right: 18px;
+    z-index: 7;
+    width: min(360px, calc(100dvw - 28px));
+    max-height: min(560px, calc(100dvh - 96px));
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+    overflow: hidden;
+    backdrop-filter: blur(18px);
+}
+
+.join-requests-panel[hidden] {
+    display: none;
+}
+
+.join-requests-list {
+    display: grid;
+    gap: 10px;
+    max-height: 440px;
+    padding: 12px;
+    overflow: auto;
+    list-style: none;
+}
+
+.join-requests-list .join-request-card {
+    box-shadow: none;
+}
+
+.host-badge[hidden],
+.join-requests-toggle[hidden],
+.room-access-control[hidden] {
+    display: none;
+}
+
 svg, img {
     pointer-events: none
 }
@@ -527,7 +622,7 @@ svg, img {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    width: min(720px, calc(100dvw - 28px));
+    width: min(960px, calc(100dvw - 28px));
     min-height: 48px;
     padding: 6px 8px 6px 14px;
     border: 1px solid var(--border);
@@ -562,6 +657,8 @@ svg, img {
 
 .collaboration {
     gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .connection-status {
@@ -1206,8 +1303,14 @@ body.drag-import::after {
 
     .activity-toggle,
     .share-button,
+    .host-badge,
+    .join-requests-toggle,
     .connection-status {
         padding: 0 10px;
+    }
+
+    .room-access-control {
+        display: none;
     }
 
     .connection-status {

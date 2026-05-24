@@ -343,6 +343,24 @@ async function run() {
     });
     await host.waitFor('init');
 
+    const openAccess = await requestJson(address, 'POST', `/api/rooms/${closedRoomId}/access`, {
+        accessMode: 'open',
+        hostId: 'closed-host',
+        accessToken: closedRoom.accessToken,
+    });
+    assert.equal(openAccess.status, 200);
+    assert.equal(openAccess.body.accessMode, 'open');
+    assert.equal((await host.waitFor('room-access-updated')).accessMode, 'open');
+
+    const closeAccess = await requestJson(address, 'POST', `/api/rooms/${closedRoomId}/access`, {
+        accessMode: 'closed',
+        hostId: 'closed-host',
+        accessToken: closedRoom.accessToken,
+    });
+    assert.equal(closeAccess.status, 200);
+    assert.equal(closeAccess.body.accessMode, 'closed');
+    assert.equal((await host.waitFor('room-access-updated')).accessMode, 'closed');
+
     const requestResponse = await requestJson(address, 'POST', `/api/rooms/${closedRoomId}/join-requests`, {
         clientId: 'closed-guest',
         user: {

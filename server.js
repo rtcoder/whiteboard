@@ -251,6 +251,42 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
+    const accessMatch = pathname.match(/^\/api\/rooms\/([^/]+)\/access$/);
+
+    if (req.method === 'POST' && accessMatch) {
+        try {
+            const roomId = sanitizeRoomId(accessMatch[1]);
+            const room = getRoom(roomId);
+            const body = await readJsonBody(req);
+            const accessMode = ROOM_ACCESS_MODES.has(body.accessMode) ? body.accessMode : null;
+
+            if (!accessMode) {
+                sendJson(res, 400, {error: 'Invalid access mode'});
+                return;
+            }
+
+            if (room.host?.id && body.hostId !== room.host.id) {
+                sendJson(res, 403, {error: 'Only the host can update room access'});
+                return;
+            }
+
+            room.accessMode = accessMode;
+            room.lastTouchedAt = Date.now();
+            persistRoom(roomId, room);
+            const message = {
+                type: 'room-access-updated',
+                accessMode,
+            };
+            for (const client of room.clients) {
+                send(client, message);
+            }
+            sendJson(res, 200, getRoomMetadata(room, body.hostId, body.accessToken));
+        } catch {
+            sendJson(res, 400, {error: 'Invalid access update'});
+        }
+        return;
+    }
+
     if (pathname.startsWith('/js/') || pathname.startsWith('/css/')) {
         sendFile(res, path.join(ROOT, pathname));
         return;

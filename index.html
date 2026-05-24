@@ -65,6 +65,17 @@
     <span>Whiteboard</span>
   </div>
   <div class="collaboration">
+    <span class="host-badge" hidden>Host</span>
+    <label class="room-access-control" hidden>
+      <span>Access</span>
+      <select class="room-access-select" aria-label="Room access">
+        <option value="open">Open</option>
+        <option value="closed">Closed</option>
+      </select>
+    </label>
+    <button class="join-requests-toggle" type="button" hidden aria-expanded="false" aria-controls="joinRequestsPanel">
+      Requests <span class="join-requests-count">0</span>
+    </button>
     <span class="connection-status" data-state="connecting">Connecting</span>
     <div class="presence">
     </div>
@@ -72,6 +83,23 @@
     <button class="share-button" type="button">Share</button>
   </div>
 </header>
+
+<aside class="join-requests-panel" id="joinRequestsPanel" aria-label="Join requests" hidden>
+  <div class="activity-header">
+    <div>
+      <strong>Join requests</strong>
+      <span>Waiting for host approval</span>
+    </div>
+    <button class="join-requests-close activity-close" type="button" aria-label="Close join requests">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M6 6L18 18M18 6L6 18" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+  <ol class="join-requests-list">
+    <li class="activity-empty">No pending requests</li>
+  </ol>
+</aside>
 
 <aside class="activity-panel" id="activityPanel" aria-label="Activity history">
   <div class="activity-header">
