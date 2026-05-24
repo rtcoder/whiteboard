@@ -55,10 +55,13 @@ const migratedObjects = migrateObjects([
     {id: 'path-old', type: 'path', points: []},
     {id: 'image-old', type: 'image', x: 0, y: 0, width: 10, height: 10},
     {id: 'flow-old', type: 'flow-process', x: 0, y: 0, x2: 120, y2: 80},
+    {id: 'freeform-old', type: 'freeform', points: [{x: 0, y: 0}, {x: 10, y: 0}, {x: 0, y: 10}]},
 ]);
 
-assert.equal(migratedObjects.length, 3);
+assert.equal(migratedObjects.length, 4);
 assert.ok(migratedObjects.every(object => object.schemaVersion === CURRENT_SCHEMA_VERSION));
+assert.equal(migratedObjects[3].closed, true);
+assert.equal(migratedObjects[3].fill, 'transparent');
 
 const mergedState = mergeBoardState(
     [{id: 'a', type: 'rectangle', color: '#111'}],

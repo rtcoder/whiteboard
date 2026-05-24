@@ -57,6 +57,26 @@ function base64ToUint8(base64) {
     return bytes;
 }
 
+function imageDataPayloadToDataUrl(payload = {}) {
+    const width = payload.width || 1;
+    const height = payload.height || 1;
+    let bytes = payload.dataBase64
+        ? base64ToUint8(payload.dataBase64)
+        : new Uint8ClampedArray(payload.data || []);
+    const expectedLength = width * height * 4;
+
+    if (bytes.length !== expectedLength) {
+        bytes = new Uint8ClampedArray(expectedLength);
+    }
+
+    const imageData = new ImageData(bytes, width, height);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d').putImageData(imageData, 0, 0);
+    return canvas.toDataURL('image/png');
+}
+
 function serializeObject(object) {
     const withSchema = {
         ...object,
@@ -108,14 +128,19 @@ function deserializeObject(object) {
         return object;
     }
 
-    const imageBytes = object.imageData.dataBase64
-        ? base64ToUint8(object.imageData.dataBase64)
-        : new Uint8ClampedArray(object.imageData.data || []);
-
-    return {
-        ...object,
-        imageData: new ImageData(imageBytes, object.imageData.width, object.imageData.height),
-    };
+    return migrateObject({
+        id: object.id,
+        type: 'image',
+        x: object.x,
+        y: object.y,
+        width: object.width || object.imageData?.width || 1,
+        height: object.height || object.imageData?.height || 1,
+        src: imageDataPayloadToDataUrl(object.imageData),
+        linkedObjectIds: object.linkedObjectIds || [],
+        legacyBitmapFill: true,
+        rotation: object.rotation || 0,
+        opacity: object.opacity,
+    });
 }
 
 function getSerializedObjects() {
@@ -467,7 +492,9 @@ export function initNetwork({render, onPeersChange}) {
             app.selectedObjectId = null;
             app.selectedObjectIds = [];
             suppressBroadcast = false;
-            syncLocalObjectCache(boardState);
+            const serializedObjects = getSerializedObjects();
+            saveLocalBoardState(serializedObjects);
+            syncLocalObjectCache(serializedObjects);
             renderBoard();
             refreshActivityLog();
             updatePeers();
@@ -488,13 +515,14 @@ export function initNetwork({render, onPeersChange}) {
         if (message.type === 'board-reject') {
             currentRevision = Math.max(currentRevision, message.revision || 0);
             const incomingObjects = migrateObjects(message.boardState || []);
-            saveLocalBoardState(incomingObjects);
             suppressBroadcast = true;
             app.objects = incomingObjects.map(deserializeObject);
             app.selectedObjectId = null;
             app.selectedObjectIds = [];
             suppressBroadcast = false;
-            syncLocalObjectCache(incomingObjects);
+            const serializedObjects = getSerializedObjects();
+            saveLocalBoardState(serializedObjects);
+            syncLocalObjectCache(serializedObjects);
             renderBoard();
             window.whiteboardUpdateSelectionUi?.();
             logNetwork('board-state rejected', {
@@ -531,13 +559,14 @@ export function initNetwork({render, onPeersChange}) {
         if (message.type === 'board-state') {
             currentRevision = Math.max(currentRevision, message.revision || 0);
             const incomingObjects = migrateObjects(message.objects || []);
-            saveLocalBoardState(incomingObjects);
             suppressBroadcast = true;
             app.objects = incomingObjects.map(deserializeObject);
             app.selectedObjectId = null;
             app.selectedObjectIds = [];
             suppressBroadcast = false;
-            syncLocalObjectCache(incomingObjects);
+            const serializedObjects = getSerializedObjects();
+            saveLocalBoardState(serializedObjects);
+            syncLocalObjectCache(serializedObjects);
             renderBoard();
             window.whiteboardUpdateSelectionUi?.();
             refreshActivityLog();

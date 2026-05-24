@@ -10,7 +10,7 @@ const MAX_ACTIVITY_ITEMS = 200;
 
 const objectLabels = {
     arrow: 'arrow',
-    bitmap: 'drawing',
+    bitmap: 'legacy fill image',
     callout: 'callout',
     comment: 'comment',
     connector: 'connector',

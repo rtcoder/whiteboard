@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 export function migrateObject(object) {
     const migrated = {
@@ -9,8 +9,10 @@ export function migrateObject(object) {
         ...object,
     };
 
-    if (migrated.type === 'path') {
+    if (migrated.type === 'path' || migrated.type === 'freeform') {
         migrated.opacity = migrated.opacity ?? 1;
+        migrated.closed = migrated.type === 'freeform' ? migrated.closed ?? true : migrated.closed ?? false;
+        migrated.fill = migrated.closed ? migrated.fill || 'transparent' : migrated.fill;
     }
 
     if (migrated.type === 'connector') {
@@ -25,6 +27,7 @@ export function migrateObject(object) {
 
     if (migrated.type === 'image') {
         migrated.rotation = migrated.rotation || 0;
+        migrated.legacyBitmapFill = Boolean(migrated.legacyBitmapFill);
     }
 
     migrated.schemaVersion = CURRENT_SCHEMA_VERSION;
