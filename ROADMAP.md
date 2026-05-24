@@ -11,7 +11,6 @@ This file tracks implemented tools, planned features, and useful next steps for 
 - [x] Eraser: erase an entire object.
 - [x] Fill: region and shape fill.
 - [x] Fill: adjustable color tolerance.
-- [ ] Fill: edge cleanup controls.
 
 ## 2. Shapes
 
@@ -21,7 +20,7 @@ This file tracks implemented tools, planned features, and useful next steps for 
 - [x] Circle/ellipse.
 - [x] Diamond, useful for diagrams.
 - [x] Polygon shape.
-- [ ] Freeform shape.
+- [x] Freeform shape.
 - [x] Magnetic connectors between objects, especially for flowcharts.
 
 ## 3. Text And Notes
@@ -106,14 +105,14 @@ These groups track the remaining "tip-top" work. Each group should land as a foc
 
 - [x] SVG board layer as the visible render surface.
 - [x] SVG rendering for current object types.
-- [ ] Remove persistent canvas board runtime.
-- [ ] Make SVG renderer authoritative.
-- [ ] Use SVG DOM node picking for hit testing.
-- [ ] Replace pixel flood fill with object/path SVG fill.
-- [ ] Add freeform closed SVG shape.
-- [ ] Migrate legacy bitmap fills to SVG image objects.
-- [ ] Make export and clipboard independent from board canvas.
-- [ ] Send undo/redo as operation diffs.
+- [x] Remove persistent canvas board runtime.
+- [x] Make SVG renderer authoritative.
+- [x] Use SVG DOM node picking for hit testing.
+- [x] Replace pixel flood fill with object/path SVG fill.
+- [x] Add freeform closed SVG shape.
+- [x] Migrate legacy bitmap fills to SVG image objects.
+- [x] Make export and clipboard independent from board canvas.
+- [x] Send undo/redo as operation diffs.
 
 Pure SVG fill is intentionally object based. Arbitrary pixel flood fill is no longer a target behavior.
 
@@ -144,7 +143,7 @@ Pure SVG fill is intentionally object based. Arbitrary pixel flood fill is no lo
 - [x] Bitmap fill stored as board object and synced.
 - [x] Fill edge cleanup preset.
 - [x] Smaller bitmap fill payloads.
-- [ ] Fill undo/redo as operation, not full replace.
+- [x] Fill undo/redo as operation, not full replace.
 - [x] Freehand path simplification.
 - [x] Pen/pencil smoothing.
 - [x] Point eraser for freehand paths.
@@ -169,7 +168,7 @@ Pure SVG fill is intentionally object based. Arbitrary pixel flood fill is no lo
 - [x] Activity search/filter.
 - [x] Group similar activity events.
 - [x] Drag minimap viewport.
-- [ ] Saving/synced/offline status.
+- [x] Saving/synced/offline status.
 - [x] Mobile toolbar polish.
 
 ### Export Import And Versions
@@ -189,7 +188,7 @@ Pure SVG fill is intentionally object based. Arbitrary pixel flood fill is no lo
 - [x] Full state for init/recovery.
 - [x] Standardized operation event names.
 - [x] Bounded server operation log.
-- [ ] Undo/redo as operation output.
+- [x] Undo/redo as operation output.
 - [x] Persisted room schema migration.
 
 ### Reliability And Tests

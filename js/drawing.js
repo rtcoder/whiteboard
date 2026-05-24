@@ -40,7 +40,7 @@ export function undo() {
     app.selectedObjectId = null;
     app.selectedObjectIds = [];
     render();
-    broadcastBoardState({mode: 'replace'});
+    broadcastBoardState();
     return true;
 }
 
@@ -54,7 +54,7 @@ export function redo() {
     app.selectedObjectId = null;
     app.selectedObjectIds = [];
     render();
-    broadcastBoardState({mode: 'replace'});
+    broadcastBoardState();
     return true;
 }
 
