@@ -104,11 +104,6 @@ export function clearUnlockedObjects(commit = true) {
     return true;
 }
 
-function clearCanvas() {
-    app.ctx.fillStyle = 'white';
-    app.ctx.fillRect(0, 0, app.canvas.width, app.canvas.height);
-}
-
 function createSvgElement(name, attrs = {}) {
     const element = document.createElementNS(SVG_NS, name);
 
@@ -206,110 +201,6 @@ function imageDataToDataUrl(imageData) {
     return url;
 }
 
-function drawPath(object) {
-    if (object.points.length < 2) {
-        return;
-    }
-
-    app.ctx.beginPath();
-    app.ctx.lineWidth = object.lineWidth;
-    app.ctx.lineCap = 'round';
-    app.ctx.lineJoin = 'round';
-    app.ctx.strokeStyle = object.color;
-    app.ctx.globalAlpha = object.opacity || 1;
-    app.ctx.moveTo(object.points[0].x, object.points[0].y);
-
-    for (const point of object.points.slice(1)) {
-        app.ctx.lineTo(point.x, point.y);
-    }
-
-    app.ctx.stroke();
-    app.ctx.globalAlpha = 1;
-}
-
-function drawArrowHead(from, to, color, lineWidth) {
-    const angle = Math.atan2(to.y - from.y, to.x - from.x);
-    const size = Math.max(14, lineWidth * 2.6);
-
-    app.ctx.beginPath();
-    app.ctx.moveTo(to.x, to.y);
-    app.ctx.lineTo(to.x - size * Math.cos(angle - Math.PI / 6), to.y - size * Math.sin(angle - Math.PI / 6));
-    app.ctx.lineTo(to.x - size * Math.cos(angle + Math.PI / 6), to.y - size * Math.sin(angle + Math.PI / 6));
-    app.ctx.closePath();
-    app.ctx.fillStyle = color;
-    app.ctx.fill();
-}
-
-function drawShape(object) {
-    const x = Math.min(object.x, object.x2);
-    const y = Math.min(object.y, object.y2);
-    const width = Math.abs(object.x2 - object.x);
-    const height = Math.abs(object.y2 - object.y);
-
-    app.ctx.beginPath();
-    app.ctx.lineWidth = object.lineWidth;
-    app.ctx.strokeStyle = object.color;
-    app.ctx.fillStyle = object.fill || 'transparent';
-
-    if (object.type === 'rectangle' || object.type === 'flow-process') {
-        app.ctx.rect(x, y, width, height);
-    } else if (object.type === 'ellipse' || object.type === 'flow-terminator' || object.type === 'mind-node') {
-        app.ctx.ellipse(x + width / 2, y + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
-    } else if (object.type === 'diamond' || object.type === 'flow-decision') {
-        getShapePoints(object).forEach((point, index) => {
-            if (index === 0) {
-                app.ctx.moveTo(point.x, point.y);
-            } else {
-                app.ctx.lineTo(point.x, point.y);
-            }
-        });
-        app.ctx.closePath();
-    } else if (object.type === 'polygon') {
-        getShapePoints(object).forEach((point, index) => {
-            if (index === 0) {
-                app.ctx.moveTo(point.x, point.y);
-            } else {
-                app.ctx.lineTo(point.x, point.y);
-            }
-        });
-        app.ctx.closePath();
-    } else if (object.type === 'flow-database') {
-        const curve = Math.min(24, height * 0.22);
-        app.ctx.ellipse(x + width / 2, y + curve, width / 2, curve, 0, 0, Math.PI * 2);
-        app.ctx.moveTo(x, y + curve);
-        app.ctx.lineTo(x, y + height - curve);
-        app.ctx.ellipse(x + width / 2, y + height - curve, width / 2, curve, 0, 0, Math.PI);
-        app.ctx.moveTo(x + width, y + curve);
-        app.ctx.lineTo(x + width, y + height - curve);
-    } else if (object.type === 'swimlane' || object.type === 'kanban' || object.type === 'template-frame') {
-        app.ctx.rect(x, y, width, height);
-    } else if (object.type === 'line' || object.type === 'arrow') {
-        app.ctx.moveTo(object.x, object.y);
-        app.ctx.lineTo(object.x2, object.y2);
-    }
-
-    if (object.fill && object.type !== 'line' && object.type !== 'arrow') {
-        app.ctx.fill();
-    }
-
-    app.ctx.stroke();
-
-    if (object.type === 'arrow') {
-        drawArrowHead({x: object.x, y: object.y}, {x: object.x2, y: object.y2}, object.color, object.lineWidth);
-    }
-
-    if (object.text || object.title) {
-        app.ctx.fillStyle = object.textColor || '#0f172a';
-        app.ctx.font = `700 ${object.fontSize || 16}px Inter, system-ui, sans-serif`;
-        app.ctx.textBaseline = 'middle';
-        app.ctx.textAlign = 'center';
-        wrapText(object.text || object.title, 18).slice(0, 3).forEach((line, index, lines) => {
-            app.ctx.fillText(line, x + width / 2, y + height / 2 + (index - (lines.length - 1) / 2) * (object.fontSize || 16) * 1.25);
-        });
-        app.ctx.textAlign = 'start';
-    }
-}
-
 function wrapText(text, maxChars) {
     const words = text.split(/\s+/);
     const lines = [];
@@ -330,95 +221,6 @@ function wrapText(text, maxChars) {
     }
 
     return lines;
-}
-
-function drawTextObject(object) {
-    const isSticky = object.type === 'sticky';
-    const isCallout = object.type === 'callout';
-    const isList = object.type === 'list';
-    const isLabel = object.type === 'label';
-
-    if (isSticky || isCallout || isList || isLabel) {
-        app.ctx.fillStyle = object.fill;
-        app.ctx.strokeStyle = object.stroke || 'rgba(15, 23, 42, 0.14)';
-        app.ctx.lineWidth = 2;
-        app.ctx.beginPath();
-        app.ctx.roundRect(object.x, object.y, object.width, object.height, isLabel ? 18 : 14);
-        app.ctx.fill();
-        app.ctx.stroke();
-
-        if (isCallout) {
-            app.ctx.beginPath();
-            app.ctx.moveTo(object.x + 46, object.y + object.height - 2);
-            app.ctx.lineTo(object.x + 28, object.y + object.height + 24);
-            app.ctx.lineTo(object.x + 86, object.y + object.height - 2);
-            app.ctx.closePath();
-            app.ctx.fill();
-            app.ctx.stroke();
-        }
-    }
-
-    app.ctx.fillStyle = object.color;
-    app.ctx.font = `${object.fontWeight || 600} ${object.fontSize}px Inter, system-ui, sans-serif`;
-    app.ctx.textBaseline = 'top';
-
-    const padding = isSticky || isCallout || isList || isLabel ? (isLabel ? 12 : 18) : 0;
-
-    if (isList) {
-        object.items.forEach((item, index) => {
-            const lineY = object.y + padding + index * object.fontSize * 1.35;
-            app.ctx.beginPath();
-            app.ctx.arc(object.x + padding, lineY + object.fontSize * 0.45, 3.5, 0, Math.PI * 2);
-            app.ctx.fill();
-            app.ctx.fillText(item, object.x + padding + 14, lineY);
-        });
-        return;
-    }
-
-    const lines = wrapText(object.text, isSticky || isCallout ? 20 : isLabel ? 18 : 32);
-    lines.forEach((line, index) => {
-        app.ctx.fillText(line, object.x + padding, object.y + padding + index * object.fontSize * 1.25);
-    });
-}
-
-function drawFrameObject(object) {
-    const bounds = getBounds(object);
-
-    if (!bounds) {
-        return;
-    }
-
-    app.ctx.save();
-    app.ctx.setLineDash([14, 8]);
-    app.ctx.lineWidth = 2;
-    app.ctx.strokeStyle = object.color || '#475569';
-    app.ctx.fillStyle = object.fill || 'rgba(255, 255, 255, 0.18)';
-    app.ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-    app.ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
-    app.ctx.setLineDash([]);
-    app.ctx.fillStyle = object.color || '#475569';
-    app.ctx.font = '700 18px Inter, system-ui, sans-serif';
-    app.ctx.textBaseline = 'bottom';
-    app.ctx.fillText(object.title || 'Frame', bounds.x + 12, bounds.y - 8);
-    app.ctx.restore();
-}
-
-function drawCommentObject(object) {
-    app.ctx.save();
-    app.ctx.fillStyle = object.fill || '#fff7ed';
-    app.ctx.strokeStyle = object.stroke || '#fb923c';
-    app.ctx.lineWidth = 2;
-    app.ctx.beginPath();
-    app.ctx.roundRect(object.x, object.y, object.width, object.height, 12);
-    app.ctx.fill();
-    app.ctx.stroke();
-    app.ctx.fillStyle = object.color || '#7c2d12';
-    app.ctx.font = '650 15px Inter, system-ui, sans-serif';
-    app.ctx.textBaseline = 'top';
-    wrapText(object.text, 26).slice(0, 5).forEach((line, index) => {
-        app.ctx.fillText(line, object.x + 14, object.y + 12 + index * 20);
-    });
-    app.ctx.restore();
 }
 
 function getRawBounds(object) {
@@ -856,34 +658,6 @@ function fillObjectAt(point, fillColor) {
         objectId: object.id,
         objectType: object.type,
     };
-}
-
-function drawSelection(object) {
-    const bounds = getBounds(object);
-
-    if (!bounds) {
-        return;
-    }
-
-    app.ctx.save();
-    app.ctx.setLineDash([8, 6]);
-    app.ctx.lineWidth = 2;
-    app.ctx.strokeStyle = '#2563eb';
-    app.ctx.strokeRect(bounds.x - 8, bounds.y - 8, bounds.width + 16, bounds.height + 16);
-    app.ctx.restore();
-}
-
-function drawSelectionBounds(bounds) {
-    if (!bounds) {
-        return;
-    }
-
-    app.ctx.save();
-    app.ctx.setLineDash([8, 6]);
-    app.ctx.lineWidth = 2;
-    app.ctx.strokeStyle = '#2563eb';
-    app.ctx.strokeRect(bounds.x - 8, bounds.y - 8, bounds.width + 16, bounds.height + 16);
-    app.ctx.restore();
 }
 
 function createLockedBadge(bounds) {
