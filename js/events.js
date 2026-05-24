@@ -1332,6 +1332,122 @@ function loadImageFile(file, point = getCanvasPoint(window.innerWidth / 2, windo
     reader.readAsDataURL(file);
 }
 
+function importTextObject(text, point = getCanvasPoint(window.innerWidth / 2, window.innerHeight / 2)) {
+    const object = createText(point, text.trim().slice(0, 500));
+
+    saveHistory();
+    app.objects.push(object);
+    setSelection([object]);
+    broadcastBoardState();
+    broadcastActivity('text-added', {
+        objectId: object.id,
+        objectType: object.type,
+        text: object.text,
+    });
+}
+
+function getSvgNumber(element, name, fallback = 0) {
+    const value = Number.parseFloat(element.getAttribute(name));
+    return Number.isFinite(value) ? value : fallback;
+}
+
+function setImportedStyle(object, element) {
+    const stroke = element.getAttribute('stroke');
+    const fill = element.getAttribute('fill');
+
+    if (stroke && stroke !== 'none') {
+        object.color = stroke;
+    }
+
+    if (fill && fill !== 'none' && !['line', 'arrow'].includes(object.type)) {
+        object.fill = fill;
+    }
+}
+
+function importSvgAsObjects(svgText, point = getCanvasPoint(window.innerWidth / 2, window.innerHeight / 2)) {
+    const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
+    const parseError = doc.querySelector('parsererror');
+
+    if (parseError) {
+        return false;
+    }
+
+    const importedObjects = [];
+    const origin = {x: Number.POSITIVE_INFINITY, y: Number.POSITIVE_INFINITY};
+    const elements = [...doc.querySelectorAll('rect, circle, ellipse, line, text')].slice(0, 80);
+
+    elements.forEach(element => {
+        let object = null;
+
+        if (element.tagName === 'rect') {
+            object = createShape('rectangle', {x: getSvgNumber(element, 'x'), y: getSvgNumber(element, 'y')}, app.fillColor, app.lineWidth);
+            object.x2 = object.x + getSvgNumber(element, 'width', 120);
+            object.y2 = object.y + getSvgNumber(element, 'height', 80);
+        } else if (element.tagName === 'circle' || element.tagName === 'ellipse') {
+            const cx = getSvgNumber(element, 'cx');
+            const cy = getSvgNumber(element, 'cy');
+            const rx = element.tagName === 'circle' ? getSvgNumber(element, 'r', 40) : getSvgNumber(element, 'rx', 60);
+            const ry = element.tagName === 'circle' ? rx : getSvgNumber(element, 'ry', 40);
+            object = createShape('ellipse', {x: cx - rx, y: cy - ry}, app.fillColor, app.lineWidth);
+            object.x2 = cx + rx;
+            object.y2 = cy + ry;
+        } else if (element.tagName === 'line') {
+            object = createShape('line', {x: getSvgNumber(element, 'x1'), y: getSvgNumber(element, 'y1')}, app.fillColor, app.lineWidth);
+            object.x2 = getSvgNumber(element, 'x2', object.x + 120);
+            object.y2 = getSvgNumber(element, 'y2', object.y);
+        } else if (element.tagName === 'text') {
+            object = createText({x: getSvgNumber(element, 'x'), y: getSvgNumber(element, 'y')}, element.textContent.trim() || 'Text');
+            object.fontSize = getSvgNumber(element, 'font-size', object.fontSize);
+        }
+
+        if (!object) {
+            return;
+        }
+
+        setImportedStyle(object, element);
+        const bounds = getObjectBounds(object);
+        if (bounds) {
+            origin.x = Math.min(origin.x, bounds.x);
+            origin.y = Math.min(origin.y, bounds.y);
+        }
+        importedObjects.push(object);
+    });
+
+    if (!importedObjects.length) {
+        return false;
+    }
+
+    const offsetX = point.x - (Number.isFinite(origin.x) ? origin.x : 0);
+    const offsetY = point.y - (Number.isFinite(origin.y) ? origin.y : 0);
+    moveObjects(importedObjects, offsetX, offsetY);
+    saveHistory();
+    app.objects.push(...importedObjects);
+    setSelection(importedObjects);
+    broadcastBoardState();
+    broadcastActivity('image-imported', {
+        objectName: `${importedObjects.length} SVG objects`,
+    });
+    return true;
+}
+
+function importSvgFallback(svgText, point = getCanvasPoint(window.innerWidth / 2, window.innerHeight / 2)) {
+    const src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`;
+    const image = new Image();
+
+    image.addEventListener('load', () => {
+        const object = createImageObject(point, src, image.naturalWidth || 480, image.naturalHeight || 320);
+        saveHistory();
+        app.objects.push(object);
+        setSelection([object]);
+        broadcastBoardState();
+        broadcastActivity('image-imported', {
+            objectId: object.id,
+            objectName: getObjectName(object),
+        });
+    });
+    image.src = src;
+}
+
 function getStoredSnapshots() {
     try {
         return JSON.parse(localStorage.getItem(`whiteboard:snapshots:${app.roomId}`) || '[]');
@@ -1363,8 +1479,8 @@ function renderSnapshotPanel() {
     snapshotList.innerHTML = snapshots.map(snapshot => `
         <li class="snapshot-item">
             <div>
-                <strong>${new Date(snapshot.timestamp).toLocaleString()}</strong>
-                <span>${snapshot.objects?.length || 0} objects</span>
+                <strong>${snapshot.name || 'Snapshot'}</strong>
+                <span>${new Date(snapshot.timestamp).toLocaleString()} · ${snapshot.objects?.length || 0} objects · ${snapshot.author || 'Unknown author'}</span>
             </div>
             <button type="button" data-snapshot-id="${snapshot.id}">Restore</button>
         </li>
@@ -1382,6 +1498,10 @@ function closeSnapshotPanel() {
 
 function restoreSnapshot(snapshot) {
     if (!snapshot) {
+        return;
+    }
+
+    if (!window.confirm(`Restore "${snapshot.name || 'Snapshot'}"? Current board changes will be replaced.`)) {
         return;
     }
 
@@ -1591,9 +1711,25 @@ export function initEvents() {
     });
     window.addEventListener('paste', event => {
         const imageItem = [...(event.clipboardData?.items || [])].find(item => item.type.startsWith('image/'));
+        const text = event.clipboardData?.getData('text/plain') || '';
 
         if (imageItem) {
+            event.preventDefault();
             loadImageFile(imageItem.getAsFile());
+            return;
+        }
+
+        if (text.trim().startsWith('<svg')) {
+            event.preventDefault();
+            if (!importSvgAsObjects(text)) {
+                importSvgFallback(text);
+            }
+            return;
+        }
+
+        if (text.trim() && !isTypingTarget(document.activeElement)) {
+            event.preventDefault();
+            importTextObject(text);
         }
     });
     window.addEventListener('beforeunload', () => {
@@ -1791,16 +1927,21 @@ export function initEvents() {
 
             if (toolbarButton.id === 'snapshot') {
                 const serializableObjects = app.objects.filter(object => object.type !== 'bitmap');
+                const name = window.prompt('Snapshot name', `Snapshot ${new Date().toLocaleString()}`) || 'Snapshot';
                 const snapshot = {
                     id: crypto.randomUUID(),
+                    name,
                     timestamp: new Date().toISOString(),
+                    author: app.localUser.name,
                     objects: cloneObjects(app.objects),
                 };
                 app.snapshots.push(snapshot);
                 app.snapshots = app.snapshots.slice(-10);
                 const storedSnapshots = [...getStoredSnapshots(), {
                     id: snapshot.id,
+                    name: snapshot.name,
                     timestamp: snapshot.timestamp,
+                    author: snapshot.author,
                     objects: JSON.parse(JSON.stringify(serializableObjects)),
                 }].slice(-10);
                 localStorage.setItem(`whiteboard:snapshots:${app.roomId}`, JSON.stringify(storedSnapshots));

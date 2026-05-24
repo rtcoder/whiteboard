@@ -2189,8 +2189,11 @@ export function normalizeFrame(object) {
 
 function getExportBounds() {
     const selectedFrame = app.objects.find(object => object.id === app.selectedObjectId && object.type === 'frame');
-    const bounds = selectedFrame ? getBounds(selectedFrame) : getObjectsBounds();
+    const selectedObjects = getSelectedObjects();
+    const selectedBounds = selectedObjects.length ? getObjectsBounds(selectedObjects) : null;
+    const bounds = selectedFrame ? getBounds(selectedFrame) : selectedBounds || getObjectsBounds();
     const padding = 48;
+    const isExactExport = Boolean(selectedFrame || selectedBounds);
 
     if (!bounds) {
         return {
@@ -2202,10 +2205,10 @@ function getExportBounds() {
     }
 
     return {
-        x: Math.max(0, Math.floor(bounds.x - (selectedFrame ? 0 : padding))),
-        y: Math.max(0, Math.floor(bounds.y - (selectedFrame ? 0 : padding))),
-        width: Math.ceil(bounds.width + (selectedFrame ? 0 : padding * 2)),
-        height: Math.ceil(bounds.height + (selectedFrame ? 0 : padding * 2)),
+        x: Math.max(0, Math.floor(bounds.x - (isExactExport ? 0 : padding))),
+        y: Math.max(0, Math.floor(bounds.y - (isExactExport ? 0 : padding))),
+        width: Math.ceil(bounds.width + (isExactExport ? 0 : padding * 2)),
+        height: Math.ceil(bounds.height + (isExactExport ? 0 : padding * 2)),
     };
 }
 
