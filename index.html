@@ -6,17 +6,36 @@
   <title>Whiteboard App</title>
   <link rel="stylesheet" href="./css/style.css">
 </head>
-<body style="--scale: 0.2; --lineWidth: 10px">
+<body class="lobby-active" style="--scale: 0.2; --lineWidth: 10px">
 <main class="lobby" id="lobby">
   <section class="lobby-panel">
     <div class="lobby-brand">
       <span class="board-mark"></span>
       <span>Whiteboard</span>
     </div>
-    <h1>Start a shared board</h1>
-    <p>Create a new room or paste a meeting code to join an existing board.</p>
+    <h1 id="lobbyTitle">Start a shared board</h1>
+    <p id="lobbyDescription">Create a new room or paste a meeting code to join an existing board.</p>
+    <div class="join-room-name" id="joinRoomName" hidden></div>
     <input class="name-input" id="userName" type="text" placeholder="Your name" autocomplete="name">
     <input class="name-input" id="boardName" type="text" placeholder="Board name" autocomplete="off">
+    <fieldset class="access-choice" id="roomAccessChoice">
+      <legend>Room access</legend>
+      <label>
+        <input type="radio" name="roomAccess" value="open" checked>
+        <span>
+          <strong>Open</strong>
+          <small>Anyone with the link can join</small>
+        </span>
+      </label>
+      <label>
+        <input type="radio" name="roomAccess" value="closed">
+        <span>
+          <strong>Closed</strong>
+          <small>Host approves join requests</small>
+        </span>
+      </label>
+    </fieldset>
+    <p class="join-status" id="joinStatus" role="status" aria-live="polite"></p>
     <button class="primary-action" id="newWhiteboard" type="button">New whiteboard</button>
     <form class="join-form" id="joinWhiteboard">
       <input id="roomCode" type="text" placeholder="Meeting code" autocomplete="off">
@@ -28,6 +47,7 @@
 <svg id="whiteboardSvg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
 <div class="draw-handler"></div>
 <div class="laser-layer" aria-hidden="true"></div>
+<div class="join-request-stack" aria-live="polite" aria-label="Join requests"></div>
 <div class="reaction-picker" id="reactionPicker" hidden>
   <button data-emoji="👍">👍</button>
   <button data-emoji="❓">❓</button>

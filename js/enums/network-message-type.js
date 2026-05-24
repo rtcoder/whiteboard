@@ -7,6 +7,8 @@ export const NetworkMessageType = Object.freeze({
     Cursor: 'cursor',
     Error: 'error',
     Init: 'init',
+    JoinRequest: 'join-request',
+    JoinRequestUpdated: 'join-request-updated',
     Laser: 'laser',
     ObjectLock: 'object-lock',
     ObjectLockState: 'object-lock-state',

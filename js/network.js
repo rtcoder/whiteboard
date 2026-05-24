@@ -1,7 +1,7 @@
 import {app} from './app.js';
 import {addActivityEntries, refreshActivityLog} from './activity.js';
 import {BoardOperationKind} from './enums/board-operation-kind.js';
-import {ConnectionStatus, ConnectionStatusLabels} from './enums/connection-status';
+import {ConnectionStatus, ConnectionStatusLabels} from './enums/connection-status.js';
 import {NetworkMessageType} from './enums/network-message-type.js';
 import {ObjectType} from './enums/object-type.js';
 import {CURRENT_SCHEMA_VERSION, migrateObject, migrateObjects} from './schema.js';
@@ -28,6 +28,7 @@ const CURSOR_SEND_INTERVAL = 50;
 const LASER_SEND_INTERVAL = 40;
 const OBJECT_LOCK_SEND_INTERVAL = 1200;
 const MAX_RECONNECT_DELAY = 8000;
+const joinRequestCards = new Map();
 
 function logNetwork(...args) {
     if (DEBUG_NETWORK) {
@@ -37,6 +38,77 @@ function logNetwork(...args) {
 
 function getRoomStorageKey() {
     return `whiteboard:roomState:${app.roomId}`;
+}
+
+async function updateJoinRequest(request, action, card) {
+    card?.classList.add('is-resolving');
+    card?.querySelectorAll('button').forEach(button => {
+        button.disabled = true;
+    });
+
+    try {
+        const response = await fetch(`/api/rooms/${encodeURIComponent(app.roomId)}/join-requests/${encodeURIComponent(request.id)}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                action,
+                hostId: app.clientId,
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error('Unable to update join request');
+        }
+
+        joinRequestCards.delete(request.id);
+        card?.remove();
+        window.whiteboardShowStatus?.(action === 'accept' ? 'Join request accepted' : 'Join request declined');
+    } catch {
+        card?.classList.remove('is-resolving');
+        card?.querySelectorAll('button').forEach(button => {
+            button.disabled = false;
+        });
+        window.whiteboardShowStatus?.('Unable to update join request');
+    }
+}
+
+function showJoinRequest(request) {
+    if (!request?.id || joinRequestCards.has(request.id)) {
+        return;
+    }
+
+    const stack = document.querySelector('.join-request-stack');
+
+    if (!stack) {
+        return;
+    }
+
+    const user = request.user || {};
+    const userName = user.name || 'A guest';
+    const initials = user.initials || getUserAvatar(userName, `${userName}:${request.clientId}`).initials;
+    const color = user.color || getUserAvatar(userName, `${userName}:${request.clientId}`).color;
+    const card = document.createElement('section');
+    card.className = 'join-request-card';
+    card.style.setProperty('--request-color', color);
+    card.innerHTML = `
+        <div class="join-request-avatar" aria-hidden="true"></div>
+        <div class="join-request-content">
+            <div class="join-request-title">Join request</div>
+            <div class="join-request-message"></div>
+            <div class="join-request-actions">
+                <button class="accept" type="button">Accept</button>
+                <button class="deny" type="button">Deny</button>
+            </div>
+        </div>
+    `;
+    card.querySelector('.join-request-avatar').textContent = initials;
+    card.querySelector('.join-request-message').textContent = `${userName} wants to join "${app.roomName || 'this whiteboard'}".`;
+    card.querySelector('.accept').addEventListener('click', () => updateJoinRequest(request, 'accept', card));
+    card.querySelector('.deny').addEventListener('click', () => updateJoinRequest(request, 'reject', card));
+    joinRequestCards.set(request.id, card);
+    stack.prepend(card);
 }
 
 function base64ToUint8(base64) {
@@ -430,6 +502,7 @@ export function initNetwork({render, onPeersChange}) {
             name: app.localUser.name,
             color: app.localUser.color,
             initials: app.localUser.initials,
+            token: localStorage.getItem(`whiteboard:accessToken:${app.roomId}`) || '',
         });
         socket = new WebSocket(`${protocol}://${location.host}/ws?${params.toString()}`);
         logNetwork('connecting', {
@@ -499,6 +572,10 @@ export function initNetwork({render, onPeersChange}) {
         if (message.type === NetworkMessageType.Init) {
             clientId = message.clientId;
             app.clientId = clientId;
+            app.roomName = message.roomName || app.roomName;
+            app.roomHost = message.host || app.roomHost;
+            app.roomAccessMode = message.accessMode || app.roomAccessMode;
+            app.isHost = app.roomHost?.id === app.clientId || app.isHost;
             refreshLocalUserAvatar();
             currentRevision = message.revision || 0;
             pendingBoardStates = new Map();
@@ -704,6 +781,11 @@ export function initNetwork({render, onPeersChange}) {
 
         if (message.type === NetworkMessageType.Activity) {
             addActivityEntries([message.event]);
+            return;
+        }
+
+        if (message.type === NetworkMessageType.JoinRequest && app.isHost) {
+            showJoinRequest(message.request);
             return;
         }
 

@@ -1565,7 +1565,7 @@ export function initEvents() {
         app.reactionEmoji = null;
         hideReactionPicker();
     });
-    const boardName = localStorage.getItem(`whiteboard:boardName:${app.roomId}`) || `Whiteboard / ${app.roomId.slice(0, 8)}`;
+    const boardName = app.roomName || localStorage.getItem(`whiteboard:boardName:${app.roomId}`) || `Whiteboard / ${app.roomId.slice(0, 8)}`;
     document.querySelector('.board-title span:last-child').textContent = boardName;
     shareButton.addEventListener('click', copyShareLink);
     snapshotClose?.addEventListener('click', closeSnapshotPanel);

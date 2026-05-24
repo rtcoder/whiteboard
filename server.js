@@ -20,6 +20,7 @@ const MAX_BITMAP_PIXELS = 1_800_000;
 const MAX_ROOM_IDLE_MS = 24 * 60 * 60 * 1000;
 const OPERATION_RATE_WINDOW_MS = 1000;
 const MAX_OPERATIONS_PER_WINDOW = 16;
+const ROOM_ACCESS_MODES = new Set(['open', 'closed']);
 const mimeTypes = {
     '.css': 'text/css',
     '.html': 'text/html',
@@ -52,9 +53,203 @@ function sendFile(res, filePath) {
     });
 }
 
-const server = http.createServer((req, res) => {
+function sendJson(res, statusCode, payload) {
+    res.writeHead(statusCode, {'Content-Type': 'application/json'});
+    res.end(JSON.stringify(payload));
+}
+
+function readJsonBody(req) {
+    return new Promise((resolve, reject) => {
+        let body = '';
+
+        req.on('data', chunk => {
+            body += chunk;
+
+            if (body.length > 1024 * 1024) {
+                reject(new Error('Request body too large'));
+                req.destroy();
+            }
+        });
+        req.on('end', () => {
+            try {
+                resolve(body ? JSON.parse(body) : {});
+            } catch (error) {
+                reject(error);
+            }
+        });
+        req.on('error', reject);
+    });
+}
+
+function sanitizeRoomId(roomId) {
+    return String(roomId || '').replace(/[^a-zA-Z0-9-]/g, '');
+}
+
+function createRoomAccessToken(room, clientId) {
+    const token = crypto.randomUUID();
+    room.accessTokens = room.accessTokens || new Map();
+    room.accessTokens.set(clientId, token);
+    return token;
+}
+
+function canClientJoinRoom(room, clientId, accessToken = '') {
+    return room.accessMode !== 'closed'
+        || room.host?.id === clientId
+        || (Boolean(accessToken) && room.accessTokens?.get(clientId) === accessToken);
+}
+
+function getRoomMetadata(room, clientId = '', accessToken = '') {
+    return {
+        id: room.id,
+        name: room.name || `Whiteboard / ${room.id.slice(0, 8)}`,
+        host: room.host || null,
+        accessMode: room.accessMode || 'open',
+        canJoin: canClientJoinRoom(room, clientId, accessToken),
+        revision: room.revision || 0,
+        hasBoardState: Boolean(room.boardState?.length),
+    };
+}
+
+const server = http.createServer(async (req, res) => {
     const parsedUrl = url.parse(req.url);
     const pathname = decodeURIComponent(parsedUrl.pathname);
+
+    if (req.method === 'GET' && /^\/api\/rooms\/[^/]+$/.test(pathname)) {
+        const roomId = sanitizeRoomId(pathname.replace('/api/rooms/', ''));
+
+        if (!roomId) {
+            sendJson(res, 400, {error: 'Missing room id'});
+            return;
+        }
+
+        const query = new URLSearchParams(parsedUrl.query || '');
+        const clientId = sanitizeRoomId(query.get('client'));
+        const accessToken = sanitizeRoomId(query.get('token'));
+        sendJson(res, 200, getRoomMetadata(getRoom(roomId), clientId, accessToken));
+        return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/rooms') {
+        try {
+            const body = await readJsonBody(req);
+            const roomId = sanitizeRoomId(body.roomId || crypto.randomUUID());
+
+            if (!roomId) {
+                sendJson(res, 400, {error: 'Missing room id'});
+                return;
+            }
+
+            const room = getRoom(roomId);
+            const roomName = String(body.name || '').trim() || `Whiteboard / ${roomId.slice(0, 8)}`;
+            room.name = roomName.slice(0, 120);
+            room.host = room.host || body.host || null;
+            room.accessMode = ROOM_ACCESS_MODES.has(body.accessMode) ? body.accessMode : 'open';
+            room.lastTouchedAt = Date.now();
+            if (room.host?.id) {
+                createRoomAccessToken(room, room.host.id);
+            }
+            persistRoom(roomId, room);
+            sendJson(res, 201, {
+                ...getRoomMetadata(room, body.host?.id),
+                accessToken: room.accessTokens.get(room.host?.id),
+            });
+        } catch (error) {
+            sendJson(res, 400, {error: 'Invalid room payload'});
+        }
+        return;
+    }
+
+    const joinRequestMatch = pathname.match(/^\/api\/rooms\/([^/]+)\/join-requests(?:\/([^/]+))?$/);
+
+    if (joinRequestMatch) {
+        const roomId = sanitizeRoomId(joinRequestMatch[1]);
+        const requestId = joinRequestMatch[2] ? sanitizeRoomId(joinRequestMatch[2]) : null;
+        const room = getRoom(roomId);
+        room.joinRequests = room.joinRequests || new Map();
+
+        if (req.method === 'POST' && !requestId) {
+            try {
+                const body = await readJsonBody(req);
+                const clientId = sanitizeRoomId(body.clientId);
+                const user = body.user || {};
+
+                if (!clientId || !user.name) {
+                    sendJson(res, 400, {error: 'Missing join request user'});
+                    return;
+                }
+
+                if (canClientJoinRoom(room, clientId, body.accessToken)) {
+                    sendJson(res, 200, {
+                        id: crypto.randomUUID(),
+                        status: 'accepted',
+                        accessToken: room.accessTokens.get(clientId) || null,
+                    });
+                    return;
+                }
+
+                const request = {
+                    id: crypto.randomUUID(),
+                    clientId,
+                    user: {
+                        id: clientId,
+                        name: String(user.name).slice(0, 80),
+                        color: user.color || '#2563eb',
+                        initials: user.initials || 'G',
+                    },
+                    status: 'pending',
+                    createdAt: new Date().toISOString(),
+                };
+                room.joinRequests.set(request.id, request);
+                room.lastTouchedAt = Date.now();
+                notifyHostJoinRequest(room, request);
+                sendJson(res, 202, request);
+            } catch {
+                sendJson(res, 400, {error: 'Invalid join request'});
+            }
+            return;
+        }
+
+        if (req.method === 'GET' && requestId) {
+            const request = room.joinRequests.get(requestId);
+
+            if (!request) {
+                sendJson(res, 404, {error: 'Join request not found'});
+                return;
+            }
+
+            sendJson(res, 200, request);
+            return;
+        }
+
+        if (req.method === 'POST' && requestId) {
+            try {
+                const body = await readJsonBody(req);
+                const request = room.joinRequests.get(requestId);
+
+                if (!request) {
+                    sendJson(res, 404, {error: 'Join request not found'});
+                    return;
+                }
+
+                if (room.host?.id && body.hostId !== room.host.id) {
+                    sendJson(res, 403, {error: 'Only the host can update join requests'});
+                    return;
+                }
+
+                request.status = body.action === 'accept' ? 'accepted' : 'rejected';
+                request.decidedAt = new Date().toISOString();
+                if (request.status === 'accepted') {
+                    request.accessToken = createRoomAccessToken(room, request.clientId);
+                }
+                room.lastTouchedAt = Date.now();
+                persistRoom(room.id, room);
+                sendJson(res, 200, request);
+            } catch {
+                sendJson(res, 400, {error: 'Invalid join request update'});
+            }
+            return;
+        }
+    }
 
     if (pathname.startsWith('/js/') || pathname.startsWith('/css/')) {
         sendFile(res, path.join(ROOT, pathname));
@@ -74,8 +269,14 @@ function getRoom(roomId) {
         const storedRoom = loadRoom(roomId);
         rooms.set(roomId, {
             id: roomId,
+            name: storedRoom.name || `Whiteboard / ${roomId.slice(0, 8)}`,
+            host: storedRoom.host || null,
+            accessMode: storedRoom.accessMode || 'open',
             boardState: storedRoom.boardState || [],
             clients: new Set(),
+            joinRequests: new Map(),
+            accessTokens: new Map(storedRoom.accessTokens || []),
+            approvedClients: new Set(storedRoom.approvedClients || []),
             objectLocks: new Map(),
             revision: storedRoom.revision || 0,
             activityLog: storedRoom.activityLog || [],
@@ -96,6 +297,11 @@ function loadRoom(roomId) {
         const room = JSON.parse(fs.readFileSync(getRoomFile(roomId), 'utf8'));
         return {
             schemaVersion: CURRENT_ROOM_SCHEMA_VERSION,
+            name: typeof room.name === 'string' ? room.name : undefined,
+            host: room.host || null,
+            accessMode: ROOM_ACCESS_MODES.has(room.accessMode) ? room.accessMode : 'open',
+            approvedClients: Array.isArray(room.approvedClients) ? room.approvedClients : [],
+            accessTokens: Array.isArray(room.accessTokens) ? room.accessTokens : [],
             boardState: Array.isArray(room.boardState) ? room.boardState : [],
             revision: Number.isFinite(room.revision) ? room.revision : 0,
             activityLog: Array.isArray(room.activityLog) ? room.activityLog : [],
@@ -118,12 +324,17 @@ function persistRoom(roomId, room) {
     const backupPath = `${filePath}.bak`;
     const payload = JSON.stringify({
         schemaVersion: CURRENT_ROOM_SCHEMA_VERSION,
+        name: typeof room.name === 'string' ? room.name : undefined,
+        host: room.host || null,
+        accessMode: ROOM_ACCESS_MODES.has(room.accessMode) ? room.accessMode : 'open',
+        approvedClients: [...room.approvedClients || []],
+        accessTokens: [...room.accessTokens || []],
         boardState: room.boardState,
         revision: room.revision,
         activityLog: room.activityLog,
         operationLog: room.operationLog,
     });
-    fs.copyFile(filePath, backupPath, () => {
+    const writePayload = () => {
         fs.writeFile(tempPath, payload, error => {
             if (error) {
                 logWs('room write failed', {roomId, error: error.message});
@@ -136,6 +347,14 @@ function persistRoom(roomId, room) {
                 }
             });
         });
+    };
+
+    fs.copyFile(filePath, backupPath, error => {
+        if (error && error.code !== 'ENOENT') {
+            logWs('room backup failed', {roomId, error: error.message});
+        }
+
+        writePayload();
     });
 }
 
@@ -219,6 +438,17 @@ function broadcast(room, sender, message) {
     for (const client of room.clients) {
         if (client !== sender) {
             send(client, message);
+        }
+    }
+}
+
+function notifyHostJoinRequest(room, request) {
+    for (const client of room.clients) {
+        if (client.clientId === room.host?.id) {
+            send(client, {
+                type: 'join-request',
+                request,
+            });
         }
     }
 }
@@ -419,6 +649,13 @@ function cleanupRooms() {
 
     for (const [roomId, room] of rooms) {
         pruneObjectLocks(room);
+        for (const [requestId, request] of room.joinRequests || []) {
+            const age = now - new Date(request.createdAt).getTime();
+
+            if (request.status !== 'pending' && age > 10 * 60 * 1000) {
+                room.joinRequests.delete(requestId);
+            }
+        }
 
         if (!room.clients.size && !room.boardState.length && now - (room.lastTouchedAt || now) > MAX_ROOM_IDLE_MS) {
             rooms.delete(roomId);
@@ -433,6 +670,19 @@ server.on('upgrade', (req, socket) => {
 
     if (parsedUrl.pathname !== '/ws' || !roomId) {
         socket.destroy();
+        return;
+    }
+
+    const room = getRoom(roomId);
+    const accessToken = sanitizeRoomId(parsedUrl.query.token);
+    if (!canClientJoinRoom(room, clientId, accessToken)) {
+        socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+        logWs('websocket rejected', {
+            roomId,
+            clientId,
+            reason: 'closed-room',
+        });
         return;
     }
 
@@ -451,7 +701,6 @@ server.on('upgrade', (req, socket) => {
         '',
     ].join('\r\n'));
 
-    const room = getRoom(roomId);
     socket.clientId = clientId;
     socket.roomId = roomId;
     socket.user = {
@@ -460,6 +709,10 @@ server.on('upgrade', (req, socket) => {
         color: parsedUrl.query.color || '#2563eb',
         initials: parsedUrl.query.initials || 'G',
     };
+    if (!room.host) {
+        room.host = socket.user;
+        persistRoom(roomId, room);
+    }
     socket.frameBuffer = Buffer.alloc(0);
     socket.messageFragments = [];
     room.clients.add(socket);
@@ -474,6 +727,9 @@ server.on('upgrade', (req, socket) => {
     send(socket, {
         type: 'init',
         clientId,
+        roomName: room.name,
+        host: room.host,
+        accessMode: room.accessMode || 'open',
         boardState: room.boardState,
         activityLog: room.activityLog,
         operationLog: room.operationLog,

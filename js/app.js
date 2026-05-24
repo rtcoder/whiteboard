@@ -42,6 +42,10 @@ export const app = {
         rotateObjects: null,
     },
     roomId: null,
+    roomName: null,
+    roomHost: null,
+    roomAccessMode: 'open',
+    isHost: false,
     clientId: storedClientId,
     localUser: {
         name: storedUserName,
