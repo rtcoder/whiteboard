@@ -15,6 +15,11 @@ const MAX_ACTIVITY_ITEMS = 200;
 const MAX_OPERATION_LOG_ITEMS = 500;
 const OBJECT_LOCK_TTL_MS = 8000;
 const CURRENT_ROOM_SCHEMA_VERSION = 2;
+const MAX_MESSAGE_BYTES = 8 * 1024 * 1024;
+const MAX_BITMAP_PIXELS = 1_800_000;
+const MAX_ROOM_IDLE_MS = 24 * 60 * 60 * 1000;
+const OPERATION_RATE_WINDOW_MS = 1000;
+const MAX_OPERATIONS_PER_WINDOW = 16;
 const mimeTypes = {
     '.css': 'text/css',
     '.html': 'text/html',
@@ -96,12 +101,21 @@ function loadRoom(roomId) {
             activityLog: Array.isArray(room.activityLog) ? room.activityLog : [],
             operationLog: Array.isArray(room.operationLog) ? room.operationLog : [],
         };
-    } catch {
+    } catch (error) {
+        if (error.code !== 'ENOENT') {
+            logWs('room file ignored', {
+                roomId,
+                error: error.message,
+            });
+        }
         return {};
     }
 }
 
 function persistRoom(roomId, room) {
+    const filePath = getRoomFile(roomId);
+    const tempPath = `${filePath}.tmp`;
+    const backupPath = `${filePath}.bak`;
     const payload = JSON.stringify({
         schemaVersion: CURRENT_ROOM_SCHEMA_VERSION,
         boardState: room.boardState,
@@ -109,7 +123,20 @@ function persistRoom(roomId, room) {
         activityLog: room.activityLog,
         operationLog: room.operationLog,
     });
-    fs.writeFile(getRoomFile(roomId), payload, () => {});
+    fs.copyFile(filePath, backupPath, () => {
+        fs.writeFile(tempPath, payload, error => {
+            if (error) {
+                logWs('room write failed', {roomId, error: error.message});
+                return;
+            }
+
+            fs.rename(tempPath, filePath, renameError => {
+                if (renameError) {
+                    logWs('room write rename failed', {roomId, error: renameError.message});
+                }
+            });
+        });
+    });
 }
 
 function encodeFrame(payload) {
@@ -351,6 +378,54 @@ function getLockConflicts(room, clientId, objectIds = []) {
     });
 }
 
+function getBitmapPixelCount(object) {
+    if (object?.type !== 'bitmap') {
+        return 0;
+    }
+
+    return (object.width || object.imageData?.width || 0) * (object.height || object.imageData?.height || 0);
+}
+
+function getOversizedBitmapIds(objects = []) {
+    return objects
+        .filter(object => getBitmapPixelCount(object) > MAX_BITMAP_PIXELS)
+        .map(object => object.id);
+}
+
+function hitOperationRateLimit(socket) {
+    const now = Date.now();
+
+    if (!socket.operationWindow || now - socket.operationWindow.startedAt > OPERATION_RATE_WINDOW_MS) {
+        socket.operationWindow = {
+            startedAt: now,
+            count: 0,
+        };
+    }
+
+    socket.operationWindow.count += 1;
+    return socket.operationWindow.count > MAX_OPERATIONS_PER_WINDOW;
+}
+
+function sendError(socket, code, message) {
+    send(socket, {
+        type: 'error',
+        code,
+        message,
+    });
+}
+
+function cleanupRooms() {
+    const now = Date.now();
+
+    for (const [roomId, room] of rooms) {
+        pruneObjectLocks(room);
+
+        if (!room.clients.size && !room.boardState.length && now - (room.lastTouchedAt || now) > MAX_ROOM_IDLE_MS) {
+            rooms.delete(roomId);
+        }
+    }
+}
+
 server.on('upgrade', (req, socket) => {
     const parsedUrl = url.parse(req.url, true);
     const roomId = parsedUrl.query.room;
@@ -388,6 +463,7 @@ server.on('upgrade', (req, socket) => {
     socket.frameBuffer = Buffer.alloc(0);
     socket.messageFragments = [];
     room.clients.add(socket);
+    room.lastTouchedAt = Date.now();
     logWs('client connected', {
         roomId,
         clientId,
@@ -449,7 +525,19 @@ server.on('upgrade', (req, socket) => {
             });
         }
 
+        if ((message.type === 'board-state' || message.type === 'board-operation') && hitOperationRateLimit(socket)) {
+            sendError(socket, 'rate-limited', 'Too many board updates. Please slow down.');
+            return;
+        }
+
         if (message.type === 'board-state') {
+            const oversizedBitmapIds = getOversizedBitmapIds(message.objects || []);
+
+            if (oversizedBitmapIds.length) {
+                sendError(socket, 'bitmap-too-large', 'Bitmap fill is too large to sync.');
+                return;
+            }
+
             const nextBoardState = message.mode === 'replace'
                 ? message.objects || []
                 : mergeBoardState(room.boardState, message.objects || []);
@@ -471,6 +559,7 @@ server.on('upgrade', (req, socket) => {
 
             room.boardState = nextBoardState;
             room.revision += 1;
+            room.lastTouchedAt = Date.now();
             addRoomOperation(room, clientId, message, room.boardState);
             logWs('room state saved', {
                 roomId,
@@ -488,6 +577,13 @@ server.on('upgrade', (req, socket) => {
         }
 
         if (message.type === 'board-operation') {
+            const oversizedBitmapIds = getOversizedBitmapIds(message.operation?.upsert || []);
+
+            if (oversizedBitmapIds.length) {
+                sendError(socket, 'bitmap-too-large', 'Bitmap fill is too large to sync.');
+                return;
+            }
+
             const nextBoardState = applyBoardOperation(room.boardState, message.operation);
             const conflicts = getLockConflicts(room, clientId, getOperationObjectIds(message.operation, room.boardState, nextBoardState));
 
@@ -504,6 +600,7 @@ server.on('upgrade', (req, socket) => {
 
             room.boardState = nextBoardState;
             room.revision += 1;
+            room.lastTouchedAt = Date.now();
             addRoomOperation(room, clientId, message, room.boardState);
             logWs('room operation applied', {
                 roomId,
@@ -549,6 +646,17 @@ server.on('upgrade', (req, socket) => {
 
     socket.on('data', buffer => {
         socket.frameBuffer = Buffer.concat([socket.frameBuffer, buffer]);
+        if (socket.frameBuffer.length > MAX_MESSAGE_BYTES) {
+            logWs('message rejected by size', {
+                roomId,
+                clientId,
+                bufferedBytes: socket.frameBuffer.length,
+            });
+            sendError(socket, 'message-too-large', 'Message is too large to sync.');
+            socket.frameBuffer = Buffer.alloc(0);
+            return;
+        }
+
         if (buffer.length > 1024) {
             logWs('data chunk', {
                 roomId,
@@ -644,6 +752,8 @@ server.on('upgrade', (req, socket) => {
         }
     });
 });
+
+setInterval(cleanupRooms, 60 * 1000).unref();
 
 if (require.main === module) {
     server.listen(PORT, HOST, () => {

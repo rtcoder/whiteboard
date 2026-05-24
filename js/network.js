@@ -519,6 +519,15 @@ export function initNetwork({render, onPeersChange}) {
             return;
         }
 
+        if (message.type === 'error') {
+            logNetwork('server error', {
+                code: message.code,
+                message: message.message,
+            });
+            window.whiteboardShowStatus?.(message.message || 'Sync error');
+            return;
+        }
+
         if (message.type === 'board-state') {
             currentRevision = Math.max(currentRevision, message.revision || 0);
             const incomingObjects = migrateObjects(message.objects || []);
