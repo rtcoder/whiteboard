@@ -1,13 +1,15 @@
 import {app} from './app.js';
+import {
+    DiagramObjectTypes,
+    FillableBoxTypes,
+    FlowShapeTypes,
+    ObjectType,
+    ShapeTypes,
+} from './enums/object-type.js';
 import {broadcastBoardState} from './network.js';
 import {createId, getCanvasPoint} from './utils.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const BASE_SHAPE_TYPES = ['line', 'arrow', 'rectangle', 'ellipse', 'diamond', 'polygon'];
-const FLOW_SHAPE_TYPES = ['flow-process', 'flow-decision', 'flow-terminator', 'flow-database'];
-const DIAGRAM_OBJECT_TYPES = ['mind-node', 'swimlane', 'kanban', 'template-frame'];
-const SHAPE_TYPES = [...BASE_SHAPE_TYPES, ...FLOW_SHAPE_TYPES, ...DIAGRAM_OBJECT_TYPES];
-const FILLABLE_BOX_TYPES = ['sticky', 'callout', 'list', 'label', 'comment', 'frame', 'swimlane', 'kanban', 'template-frame'];
 const ANCHORS = ['top', 'right', 'bottom', 'left'];
 
 function cloneObject(object) {
@@ -167,7 +169,7 @@ function smoothPoints(points) {
 }
 
 export function optimizePathObject(object) {
-    if (!['path', 'freeform'].includes(object.type) || object.points.length <= 2) {
+    if (![ObjectType.Path, ObjectType.Freeform].includes(object.type) || object.points.length <= 2) {
         return object;
     }
 
@@ -199,7 +201,7 @@ function wrapText(text, maxChars) {
 }
 
 function getRawBounds(object) {
-    if (object.type === 'connector') {
+    if (object.type === ObjectType.Connector) {
         const endpoints = getConnectorEndpoints(object);
         const x = Math.min(endpoints.from.x, endpoints.to.x);
         const y = Math.min(endpoints.from.y, endpoints.to.y);
@@ -211,7 +213,7 @@ function getRawBounds(object) {
         };
     }
 
-    if (object.type === 'path' || object.type === 'freeform') {
+    if (object.type === ObjectType.Path || object.type === ObjectType.Freeform) {
         const xs = object.points.map(point => point.x);
         const ys = object.points.map(point => point.y);
         return {
@@ -222,7 +224,7 @@ function getRawBounds(object) {
         };
     }
 
-    if (SHAPE_TYPES.includes(object.type)) {
+    if (ShapeTypes.includes(object.type)) {
         const x = Math.min(object.x, object.x2);
         const y = Math.min(object.y, object.y2);
         return {
@@ -233,7 +235,7 @@ function getRawBounds(object) {
         };
     }
 
-    if (object.type === 'frame' && 'x2' in object) {
+    if (object.type === ObjectType.Frame && 'x2' in object) {
         const x = Math.min(object.x, object.x2);
         const y = Math.min(object.y, object.y2);
         return {
@@ -244,7 +246,7 @@ function getRawBounds(object) {
         };
     }
 
-    if (['text', 'sticky', 'callout', 'list', 'label', 'frame', 'comment'].includes(object.type)) {
+    if ([ObjectType.Text, ObjectType.Sticky, ObjectType.Callout, ObjectType.List, ObjectType.Label, ObjectType.Frame, ObjectType.Comment].includes(object.type)) {
         return {
             x: object.x,
             y: object.y,
@@ -253,7 +255,7 @@ function getRawBounds(object) {
         };
     }
 
-    if (object.type === 'image') {
+    if (object.type === ObjectType.Image) {
         return {
             x: object.x,
             y: object.y,
@@ -281,7 +283,7 @@ function rotatePoint(point, center, angle) {
 function getBounds(object) {
     const bounds = getRawBounds(object);
 
-    if (!bounds || !object.rotation || object.type === 'connector') {
+    if (!bounds || !object.rotation || object.type === ObjectType.Connector) {
         return bounds;
     }
 
@@ -411,7 +413,7 @@ function isPointNearSegment(point, from, to, padding = 12) {
 }
 
 function isPointInsideObject(point, object) {
-    if (object.type === 'connector') {
+    if (object.type === ObjectType.Connector) {
         const endpoints = getConnectorEndpoints(object);
         return isPointNearSegment(point, endpoints.from, endpoints.to, Math.max(12, object.lineWidth * 2));
     }
@@ -424,7 +426,7 @@ function isPointInsideObject(point, object) {
 
     const localPoint = getLocalPoint(point, object);
 
-    if (['rectangle', 'ellipse', 'diamond', 'polygon', ...FLOW_SHAPE_TYPES, 'mind-node', 'freeform', ...FILLABLE_BOX_TYPES].includes(object.type)) {
+    if ([ObjectType.Rectangle, ObjectType.Ellipse, ObjectType.Diamond, ObjectType.Polygon, ...FlowShapeTypes, ObjectType.MindNode, ObjectType.Freeform, ...FillableBoxTypes].includes(object.type)) {
         return isPointInsideFillableObject(localPoint, object);
     }
 
@@ -517,7 +519,7 @@ function getShapePoints(object) {
     const width = Math.abs(object.x2 - object.x);
     const height = Math.abs(object.y2 - object.y);
 
-    if (object.type === 'diamond') {
+    if (object.type === ObjectType.Diamond) {
         return [
             {x: x + width / 2, y},
             {x: x + width, y: y + height / 2},
@@ -526,7 +528,7 @@ function getShapePoints(object) {
         ];
     }
 
-    if (object.type === 'flow-decision') {
+    if (object.type === ObjectType.FlowDecision) {
         return [
             {x: x + width / 2, y},
             {x: x + width, y: y + height / 2},
@@ -535,7 +537,7 @@ function getShapePoints(object) {
         ];
     }
 
-    if (object.type === 'polygon') {
+    if (object.type === ObjectType.Polygon) {
         return [
             {x: x + width * 0.25, y},
             {x: x + width * 0.75, y},
@@ -567,11 +569,11 @@ function isPointInsidePolygon(point, points) {
 }
 
 function isPointInsideFillableObject(point, object) {
-    if (FILLABLE_BOX_TYPES.includes(object.type)) {
+    if (FillableBoxTypes.includes(object.type)) {
         return isPointInBounds(point, getRawBounds(object), 0);
     }
 
-    if (object.type === 'rectangle' || object.type === 'flow-process') {
+    if (object.type === ObjectType.Rectangle || object.type === ObjectType.FlowProcess) {
         const x = Math.min(object.x, object.x2);
         const y = Math.min(object.y, object.y2);
         const width = Math.abs(object.x2 - object.x);
@@ -580,7 +582,7 @@ function isPointInsideFillableObject(point, object) {
         return point.x >= x && point.x <= x + width && point.y >= y && point.y <= y + height;
     }
 
-    if (object.type === 'ellipse' || object.type === 'flow-terminator' || object.type === 'mind-node') {
+    if (object.type === ObjectType.Ellipse || object.type === ObjectType.FlowTerminator || object.type === ObjectType.MindNode) {
         const x = Math.min(object.x, object.x2);
         const y = Math.min(object.y, object.y2);
         const radiusX = Math.abs(object.x2 - object.x) / 2;
@@ -598,15 +600,15 @@ function isPointInsideFillableObject(point, object) {
         return normalizedX * normalizedX + normalizedY * normalizedY <= 1;
     }
 
-    if (object.type === 'diamond' || object.type === 'polygon' || object.type === 'flow-decision') {
+    if (object.type === ObjectType.Diamond || object.type === ObjectType.Polygon || object.type === ObjectType.FlowDecision) {
         return isPointInsidePolygon(point, getShapePoints(object));
     }
 
-    if (object.type === 'flow-database') {
+    if (object.type === ObjectType.FlowDatabase) {
         return isPointInBounds(point, getRawBounds(object), 0);
     }
 
-    if (object.type === 'freeform' && object.closed) {
+    if (object.type === ObjectType.Freeform && object.closed) {
         return isPointInsidePolygon(point, object.points);
     }
 
@@ -615,9 +617,9 @@ function isPointInsideFillableObject(point, object) {
 
 export function canFillObject(object) {
     return Boolean(object && !object.locked && (
-        FILLABLE_BOX_TYPES.includes(object.type) ||
-        ['rectangle', 'ellipse', 'diamond', 'polygon', ...FLOW_SHAPE_TYPES, 'mind-node'].includes(object.type) ||
-        object.type === 'freeform' && object.closed
+        FillableBoxTypes.includes(object.type) ||
+        [ObjectType.Rectangle, ObjectType.Ellipse, ObjectType.Diamond, ObjectType.Polygon, ...FlowShapeTypes, ObjectType.MindNode].includes(object.type) ||
+        object.type === ObjectType.Freeform && object.closed
     ));
 }
 
@@ -856,7 +858,7 @@ function createSvgShape(object) {
         group.appendChild(text);
     };
 
-    if (object.type === 'rectangle' || object.type === 'flow-process') {
+    if (object.type === ObjectType.Rectangle || object.type === ObjectType.FlowProcess) {
         const group = createSvgElement('g');
         group.appendChild(createSvgElement('rect', {
             ...common,
@@ -864,14 +866,14 @@ function createSvgShape(object) {
             y,
             width,
             height,
-            rx: object.type === 'flow-process' ? 8 : undefined,
-            ry: object.type === 'flow-process' ? 8 : undefined,
+            rx: object.type === ObjectType.FlowProcess ? 8 : undefined,
+            ry: object.type === ObjectType.FlowProcess ? 8 : undefined,
         }));
         addCenteredLabel(group, object.text);
         return group;
     }
 
-    if (object.type === 'ellipse' || object.type === 'flow-terminator' || object.type === 'mind-node') {
+    if (object.type === ObjectType.Ellipse || object.type === ObjectType.FlowTerminator || object.type === ObjectType.MindNode) {
         const group = createSvgElement('g');
         group.appendChild(createSvgElement('ellipse', {
             ...common,
@@ -884,7 +886,7 @@ function createSvgShape(object) {
         return group;
     }
 
-    if (object.type === 'diamond' || object.type === 'flow-decision') {
+    if (object.type === ObjectType.Diamond || object.type === ObjectType.FlowDecision) {
         const group = createSvgElement('g');
         group.appendChild(createSvgElement('polygon', {
             ...common,
@@ -894,14 +896,14 @@ function createSvgShape(object) {
         return group;
     }
 
-    if (object.type === 'polygon') {
+    if (object.type === ObjectType.Polygon) {
         return createSvgElement('polygon', {
             ...common,
             points: getShapePoints(object).map(point => `${point.x},${point.y}`).join(' '),
         });
     }
 
-    if (object.type === 'flow-database') {
+    if (object.type === ObjectType.FlowDatabase) {
         const curve = Math.min(26, height * 0.22);
         const group = createSvgElement('g');
         group.appendChild(createSvgElement('path', {
@@ -918,7 +920,7 @@ function createSvgShape(object) {
         return group;
     }
 
-    if (object.type === 'swimlane') {
+    if (object.type === ObjectType.Swimlane) {
         const group = createSvgElement('g');
         group.appendChild(createSvgElement('rect', {
             ...common,
@@ -956,7 +958,7 @@ function createSvgShape(object) {
         return group;
     }
 
-    if (object.type === 'kanban') {
+    if (object.type === ObjectType.Kanban) {
         const group = createSvgElement('g');
         group.appendChild(createSvgElement('rect', {
             ...common,
@@ -1008,7 +1010,7 @@ function createSvgShape(object) {
         return group;
     }
 
-    if (object.type === 'template-frame') {
+    if (object.type === ObjectType.TemplateFrame) {
         const group = createSvgElement('g');
         group.appendChild(createSvgElement('rect', {
             ...common,
@@ -1058,7 +1060,7 @@ function createSvgShape(object) {
         return group;
     }
 
-    if (object.type === 'line' || object.type === 'arrow') {
+    if (object.type === ObjectType.Line || object.type === ObjectType.Arrow) {
         const group = createSvgElement('g');
         group.appendChild(createSvgElement('line', {
             x1: object.x,
@@ -1081,7 +1083,7 @@ function createSvgShape(object) {
             'pointer-events': 'none',
         }));
 
-        if (object.type === 'arrow') {
+        if (object.type === ObjectType.Arrow) {
             group.appendChild(createSvgArrowHead(object));
         }
 
@@ -1115,13 +1117,13 @@ function createSvgTextLines(object, parent, x, y, maxChars, padding = 0) {
 }
 
 function createSvgTextObject(object) {
-    if (object.type === 'text') {
+    if (object.type === ObjectType.Text) {
         const group = createSvgElement('g');
         createSvgTextLines(object, group, object.x, object.y, 32);
         return group;
     }
 
-    if (object.type === 'callout') {
+    if (object.type === ObjectType.Callout) {
         const group = createSvgElement('g');
         group.appendChild(createSvgElement('path', {
             d: `M ${object.x + 14} ${object.y} H ${object.x + object.width - 14} Q ${object.x + object.width} ${object.y} ${object.x + object.width} ${object.y + 14} V ${object.y + object.height - 14} Q ${object.x + object.width} ${object.y + object.height} ${object.x + object.width - 14} ${object.y + object.height} H ${object.x + 86} L ${object.x + 28} ${object.y + object.height + 24} L ${object.x + 46} ${object.y + object.height} H ${object.x + 14} Q ${object.x} ${object.y + object.height} ${object.x} ${object.y + object.height - 14} V ${object.y + 14} Q ${object.x} ${object.y} ${object.x + 14} ${object.y} Z`,
@@ -1139,14 +1141,14 @@ function createSvgTextObject(object) {
         y: object.y,
         width: object.width,
         height: object.height,
-        rx: object.type === 'label' ? 18 : 14,
-        ry: object.type === 'label' ? 18 : 14,
+        rx: object.type === ObjectType.Label ? 18 : 14,
+        ry: object.type === ObjectType.Label ? 18 : 14,
         fill: object.fill,
         stroke: object.stroke || 'rgba(15, 23, 42, 0.14)',
         'stroke-width': 2,
     }));
 
-    if (object.type === 'list') {
+    if (object.type === ObjectType.List) {
         object.items.forEach((item, index) => {
             const lineY = object.y + 18 + index * object.fontSize * 1.35;
             group.appendChild(createSvgElement('circle', {
@@ -1170,7 +1172,7 @@ function createSvgTextObject(object) {
         return group;
     }
 
-    createSvgTextLines(object, group, object.x, object.y, object.type === 'label' ? 18 : 18, object.type === 'label' ? 12 : 18);
+    createSvgTextLines(object, group, object.x, object.y, object.type === ObjectType.Label ? 18 : 18, object.type === ObjectType.Label ? 12 : 18);
     return group;
 }
 
@@ -1397,19 +1399,19 @@ function createSvgPresenceBadges() {
 function appendSvgObject(object, parent = app.svg) {
     let element = null;
 
-    if (object.type === 'image') {
+    if (object.type === ObjectType.Image) {
         element = createSvgImageObject(object);
-    } else if (object.type === 'connector') {
+    } else if (object.type === ObjectType.Connector) {
         element = createSvgConnector(object);
-    } else if (object.type === 'path' || object.type === 'freeform') {
+    } else if (object.type === ObjectType.Path || object.type === ObjectType.Freeform) {
         element = createSvgPath(object);
-    } else if (SHAPE_TYPES.includes(object.type)) {
+    } else if (ShapeTypes.includes(object.type)) {
         element = createSvgShape(object);
-    } else if (['text', 'sticky', 'callout', 'list', 'label'].includes(object.type)) {
+    } else if ([ObjectType.Text, ObjectType.Sticky, ObjectType.Callout, ObjectType.List, ObjectType.Label].includes(object.type)) {
         element = createSvgTextObject(object);
-    } else if (object.type === 'frame') {
+    } else if (object.type === ObjectType.Frame) {
         element = createSvgFrameObject(object);
-    } else if (object.type === 'comment') {
+    } else if (object.type === ObjectType.Comment) {
         element = createSvgCommentObject(object);
     }
 
@@ -1420,7 +1422,7 @@ function appendSvgObject(object, parent = app.svg) {
     setSvgAttrs(element, {
         'data-object-id': object.id,
         'data-object-type': object.type,
-        opacity: object.type !== 'path' ? object.opacity : undefined,
+        opacity: object.type !== ObjectType.Path ? object.opacity : undefined,
         transform: getRotationTransform(object),
     });
     parent.appendChild(element);
@@ -1431,7 +1433,7 @@ function renderSvg(showSelection = true) {
     const deferredObjects = new Set();
 
     for (const object of app.objects) {
-        if (object.type === 'image' && object.legacyBitmapFill && object.linkedObjectIds?.length) {
+        if (object.type === ObjectType.Image && object.legacyBitmapFill && object.linkedObjectIds?.length) {
             appendSvgObject(object);
             object.linkedObjectIds.forEach(id => deferredObjects.add(id));
         }
@@ -1506,22 +1508,22 @@ export function render(showSelection = true) {
     window.whiteboardUpdateRemoteLasers?.();
 }
 
-export function createPath(point, color, lineWidth, opacity = 1, type = 'path') {
+export function createPath(point, color, lineWidth, opacity = 1, type = ObjectType.Path) {
     return {
         id: createId(type),
         type,
         color,
         lineWidth,
         opacity,
-        closed: type === 'freeform',
-        fill: type === 'freeform' ? 'transparent' : undefined,
+        closed: type === ObjectType.Freeform,
+        fill: type === ObjectType.Freeform ? 'transparent' : undefined,
         points: [point],
     };
 }
 
 export function createShape(type, point, color, lineWidth) {
-    const isFlow = FLOW_SHAPE_TYPES.includes(type);
-    const isDiagram = DIAGRAM_OBJECT_TYPES.includes(type);
+    const isFlow = FlowShapeTypes.includes(type);
+    const isDiagram = DiagramObjectTypes.includes(type);
     const templatePresets = {
         retro: {title: 'Retro', sections: ['Went well', 'Needs work', 'Actions']},
         journey: {title: 'User journey', sections: ['Discover', 'Evaluate', 'Use', 'Improve']},
@@ -1533,8 +1535,8 @@ export function createShape(type, point, color, lineWidth) {
         const template = type.replace('template-', '');
         const preset = templatePresets[template] || {title: 'Template', sections: ['Notes', 'Decisions']};
         return {
-            id: createId('template-frame'),
-            type: 'template-frame',
+            id: createId(ObjectType.TemplateFrame),
+            type: ObjectType.TemplateFrame,
             template,
             x: point.x,
             y: point.y,
@@ -1558,22 +1560,22 @@ export function createShape(type, point, color, lineWidth) {
         fill: isFlow || isDiagram ? 'rgba(248, 250, 252, 0.86)' : undefined,
         lineWidth: isFlow || isDiagram ? Math.max(2, Math.round(lineWidth * 0.25)) : lineWidth,
         text: {
-            'flow-process': 'Process',
-            'flow-decision': 'Decision',
-            'flow-terminator': 'Start / end',
-            'flow-database': 'Database',
-            'mind-node': 'Mind node',
+            [ObjectType.FlowProcess]: 'Process',
+            [ObjectType.FlowDecision]: 'Decision',
+            [ObjectType.FlowTerminator]: 'Start / end',
+            [ObjectType.FlowDatabase]: 'Database',
+            [ObjectType.MindNode]: 'Mind node',
         }[type],
-        title: type === 'swimlane' ? 'Swimlane' : undefined,
-        lanes: type === 'swimlane' ? 3 : undefined,
-        columns: type === 'kanban' ? ['To do', 'Doing', 'Done'] : undefined,
+        title: type === ObjectType.Swimlane ? 'Swimlane' : undefined,
+        lanes: type === ObjectType.Swimlane ? 3 : undefined,
+        columns: type === ObjectType.Kanban ? ['To do', 'Doing', 'Done'] : undefined,
     };
 }
 
 export function createFrame(point, title = 'Frame') {
     return {
-        id: createId('frame'),
-        type: 'frame',
+        id: createId(ObjectType.Frame),
+        type: ObjectType.Frame,
         x: point.x,
         y: point.y,
         x2: point.x,
@@ -1588,8 +1590,8 @@ export function createFrame(point, title = 'Frame') {
 
 export function createComment(point, text) {
     return {
-        id: createId('comment'),
-        type: 'comment',
+        id: createId(ObjectType.Comment),
+        type: ObjectType.Comment,
         x: point.x,
         y: point.y,
         width: 240,
@@ -1608,8 +1610,8 @@ export function createImageObject(point, src, width, height) {
     const scale = width > maxWidth ? maxWidth / width : 1;
 
     return {
-        id: createId('image'),
-        type: 'image',
+        id: createId(ObjectType.Image),
+        type: ObjectType.Image,
         x: point.x,
         y: point.y,
         width: Math.max(80, Math.round(width * scale)),
@@ -1625,8 +1627,8 @@ export function createConnector(fromObject, toObject, color = app.fillColor) {
     const toAnchor = getNearestAnchor(toObject, from);
 
     return {
-        id: createId('connector'),
-        type: 'connector',
+        id: createId(ObjectType.Connector),
+        type: ObjectType.Connector,
         fromId: fromObject.id,
         toId: toObject.id,
         fromAnchor,
@@ -1696,8 +1698,8 @@ export function deleteObjectsByIds(ids) {
 
 export function createText(point, text) {
     return {
-        id: createId('text'),
-        type: 'text',
+        id: createId(ObjectType.Text),
+        type: ObjectType.Text,
         x: point.x,
         y: point.y,
         width: 260,
@@ -1711,8 +1713,8 @@ export function createText(point, text) {
 
 export function createCallout(point, text) {
     return {
-        id: createId('callout'),
-        type: 'callout',
+        id: createId(ObjectType.Callout),
+        type: ObjectType.Callout,
         x: point.x,
         y: point.y,
         width: 280,
@@ -1734,8 +1736,8 @@ export function createList(point, text) {
         .slice(0, 8);
 
     return {
-        id: createId('list'),
-        type: 'list',
+        id: createId(ObjectType.List),
+        type: ObjectType.List,
         x: point.x,
         y: point.y,
         width: 280,
@@ -1752,8 +1754,8 @@ export function createList(point, text) {
 
 export function createLabel(point, text) {
     return {
-        id: createId('label'),
-        type: 'label',
+        id: createId(ObjectType.Label),
+        type: ObjectType.Label,
         x: point.x,
         y: point.y,
         width: Math.max(96, Math.min(260, text.length * 10 + 28)),
@@ -1769,8 +1771,8 @@ export function createLabel(point, text) {
 
 export function createSticky(point, text) {
     return {
-        id: createId('sticky'),
-        type: 'sticky',
+        id: createId(ObjectType.Sticky),
+        type: ObjectType.Sticky,
         x: point.x,
         y: point.y,
         width: 220,
@@ -1901,7 +1903,7 @@ export function rotateObjects(objects, startRotations, angleDelta) {
 }
 
 export function normalizeFrame(object) {
-    if (object.type !== 'frame' || !('x2' in object)) {
+    if (object.type !== ObjectType.Frame || !('x2' in object)) {
         return;
     }
 
@@ -1916,7 +1918,7 @@ export function normalizeFrame(object) {
 }
 
 function getExportBounds() {
-    const selectedFrame = app.objects.find(object => object.id === app.selectedObjectId && object.type === 'frame');
+    const selectedFrame = app.objects.find(object => object.id === app.selectedObjectId && object.type === ObjectType.Frame);
     const selectedObjects = getSelectedObjects();
     const selectedBounds = selectedObjects.length ? getObjectsBounds(selectedObjects) : null;
     const bounds = selectedFrame ? getBounds(selectedFrame) : selectedBounds || getObjectsBounds();
@@ -2188,7 +2190,7 @@ export function findObjectAt(point) {
 }
 
 export function draw() {
-    if (!app.isDrawing || !app.draftObject || !['path', 'freeform'].includes(app.draftObject.type)) {
+    if (!app.isDrawing || !app.draftObject || ![ObjectType.Path, ObjectType.Freeform].includes(app.draftObject.type)) {
         return;
     }
 
@@ -2209,7 +2211,7 @@ export function erasePathAt(point, radius = app.lineWidth) {
     let changed = false;
 
     app.objects.forEach(object => {
-        if (object.type !== 'path' || object.locked) {
+        if (object.type !== ObjectType.Path || object.locked) {
             nextObjects.push(object);
             return;
         }
@@ -2244,7 +2246,7 @@ export function erasePathAt(point, radius = app.lineWidth) {
         segments.forEach((points, index) => {
             nextObjects.push({
                 ...object,
-                id: index === 0 ? object.id : createId('path'),
+                id: index === 0 ? object.id : createId(ObjectType.Path),
                 points,
             });
         });

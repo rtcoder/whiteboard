@@ -14,9 +14,16 @@ const {
 } = require('../server.js');
 
 const schemaSource = await readFile(new URL('../js/schema.js', import.meta.url), 'utf8');
-const schemaModuleSource = `${schemaSource}
+const schemaModuleSource = `const ObjectType = Object.freeze({
+    Connector: 'connector',
+    Freeform: 'freeform',
+    Image: 'image',
+    Path: 'path',
+});
+${schemaSource}
 export {CURRENT_SCHEMA_VERSION, migrateObject, migrateObjects};
 `
+    .replace("import {ObjectType} from './enums/object-type.js';\n\n", '')
     .replace('export const CURRENT_SCHEMA_VERSION', 'const CURRENT_SCHEMA_VERSION')
     .replaceAll('export function ', 'function ');
 const schemaModule = await import(`data:text/javascript;base64,${Buffer.from(schemaModuleSource).toString('base64')}`);

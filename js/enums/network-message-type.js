@@ -1,0 +1,17 @@
+export const NetworkMessageType = Object.freeze({
+    Activity: 'activity',
+    BoardAck: 'board-ack',
+    BoardOperation: 'board-operation',
+    BoardReject: 'board-reject',
+    BoardState: 'board-state',
+    Cursor: 'cursor',
+    Error: 'error',
+    Init: 'init',
+    Laser: 'laser',
+    ObjectLock: 'object-lock',
+    ObjectLockState: 'object-lock-state',
+    PeerJoined: 'peer-joined',
+    PeerLeft: 'peer-left',
+    Reaction: 'reaction',
+    Selection: 'selection',
+});

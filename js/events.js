@@ -51,31 +51,12 @@ import {
 import {getObjectName} from './activity.js';
 import {setMousePosition} from './main.js';
 import {app} from './app.js';
+import {ActivityKind} from './enums/activity-kind.js';
+import {ObjectType, TextEditableObjectTypes} from './enums/object-type.js';
+import {DrawnShapeTools, ToolType} from './enums/tool-type.js';
 import {broadcastActivity, broadcastBoardState, sendCursorPosition, sendLaserPosition, sendObjectLockState, sendSelectionState, sendReaction} from './network.js';
 import {activateMovingToolbar, deactivateMovingToolbar, hideToolbar, moveToolbar, showToolbar} from './toolbar.js';
 import {clampZoomOffset, getCanvasPoint, getCanvasTransform, hexToRgba} from './utils.js';
-
-const DRAWN_SHAPE_TOOLS = [
-    'rectangle',
-    'ellipse',
-    'diamond',
-    'polygon',
-    'line',
-    'arrow',
-    'frame',
-    'flow-process',
-    'flow-decision',
-    'flow-terminator',
-    'flow-database',
-    'mind-node',
-    'swimlane',
-    'kanban',
-    'template-retro',
-    'template-journey',
-    'template-architecture',
-    'template-brainstorming',
-];
-const TEXT_EDITABLE_TYPES = ['text', 'sticky', 'callout', 'list', 'label', 'comment', 'frame', 'mind-node', 'template-frame', 'flow-process', 'flow-decision', 'flow-terminator', 'flow-database', 'swimlane', 'connector'];
 
 const fillColorInput = document.getElementById('fillColor');
 const linePreview = document.querySelector('.line-width-preview');
@@ -173,10 +154,10 @@ function getPropertySupport(objects) {
     return {
         fill: objects.some(canFillObject),
         lineWidth: objects.some(object => 'lineWidth' in object),
-        text: objects.length === 1 && TEXT_EDITABLE_TYPES.includes(objects[0].type),
+        text: objects.length === 1 && TextEditableObjectTypes.includes(objects[0].type),
         fontSize: objects.some(object => 'fontSize' in object),
-        opacity: objects.some(object => 'opacity' in object || object.type === 'path' || object.type === 'image'),
-        connector: objects.length === 1 && objects[0].type === 'connector',
+        opacity: objects.some(object => 'opacity' in object || object.type === ObjectType.Path || object.type === ObjectType.Image),
+        connector: objects.length === 1 && objects[0].type === ObjectType.Connector,
     };
 }
 
@@ -565,11 +546,11 @@ function updateSelectedProperties(updater, activityKind, activityDetails = {}) {
 }
 
 function getTextEditorValueForObject(object) {
-    if (object?.type === 'frame' || object?.type === 'swimlane' || object?.type === 'template-frame') {
+    if (object?.type === ObjectType.Frame || object?.type === ObjectType.Swimlane || object?.type === ObjectType.TemplateFrame) {
         return object.title || 'Frame';
     }
 
-    if (object?.type === 'connector') {
+    if (object?.type === ObjectType.Connector) {
         return object.label || '';
     }
 
@@ -584,15 +565,15 @@ function getTextEditorSize(type, object) {
         };
     }
 
-    if (type === 'sticky') {
+    if (type === ObjectType.Sticky) {
         return {width: 220, height: 132};
     }
 
-    if (type === 'callout' || type === 'list' || type === 'comment') {
+    if (type === ObjectType.Callout || type === ObjectType.List || type === ObjectType.Comment) {
         return {width: 280, height: 112};
     }
 
-    if (type === 'label') {
+    if (type === ObjectType.Label) {
         return {width: 220, height: 52};
     }
 
@@ -649,11 +630,11 @@ function closeTextEditor(commit = true) {
                 return;
             }
 
-            if (object.type === 'frame' || object.type === 'swimlane' || object.type === 'template-frame') {
+            if (object.type === ObjectType.Frame || object.type === ObjectType.Swimlane || object.type === ObjectType.TemplateFrame) {
                 object.title = text;
-            } else if (object.type === 'connector') {
+            } else if (object.type === ObjectType.Connector) {
                 object.label = text;
-            } else if (object.type === 'list') {
+            } else if (object.type === ObjectType.List) {
                 object.items = text
                     .split(/\n|,/)
                     .map(item => item.trim())
@@ -664,17 +645,17 @@ function closeTextEditor(commit = true) {
             } else {
                 object.text = text;
             }
-        }, 'object-styled');
+        }, ActivityKind.ObjectStyled);
         return;
     }
 
     const objectFactories = {
-        callout: createCallout,
-        label: createLabel,
-        list: createList,
-        comment: createComment,
-        sticky: createSticky,
-        text: createText,
+        [ObjectType.Callout]: createCallout,
+        [ObjectType.Label]: createLabel,
+        [ObjectType.List]: createList,
+        [ObjectType.Comment]: createComment,
+        [ObjectType.Sticky]: createSticky,
+        [ObjectType.Text]: createText,
     };
     const object = (objectFactories[editor.type] || createText)(editor.point, text);
     saveHistory();
@@ -682,7 +663,7 @@ function closeTextEditor(commit = true) {
     setSelection([object]);
     render();
     broadcastBoardState();
-    broadcastActivity(editor.type === 'sticky' ? 'sticky-added' : editor.type === 'comment' ? 'comment-added' : 'text-added', {
+    broadcastActivity(editor.type === ObjectType.Sticky ? ActivityKind.StickyAdded : editor.type === ObjectType.Comment ? ActivityKind.CommentAdded : ActivityKind.TextAdded, {
         objectId: object.id,
         objectType: object.type,
         text,
@@ -704,7 +685,7 @@ function duplicateSelection() {
     const duplicate = duplicates[0] || duplicateObject(app.selectedObjectId);
 
     if (duplicate || duplicates.length) {
-        broadcastActivity('object-duplicated', {
+        broadcastActivity(ActivityKind.ObjectDuplicated, {
             objectId: duplicates.length === 1 ? duplicates[0].id : duplicate?.id,
             objectName: duplicates.length > 1 ? `${duplicates.length} objects` : getObjectName(duplicate || duplicates[0]),
         });
@@ -724,7 +705,7 @@ function groupSelection() {
     const groupId = groupObjects(selectedObjects);
 
     if (groupId) {
-        broadcastActivity('objects-grouped', {
+        broadcastActivity(ActivityKind.ObjectsGrouped, {
             objectName: `${selectedObjects.length} objects`,
         });
         return true;
@@ -741,7 +722,7 @@ function ungroupSelection() {
     }
 
     if (ungroupObjects(selectedObjects)) {
-        broadcastActivity('objects-ungrouped', {
+        broadcastActivity(ActivityKind.ObjectsUngrouped, {
             objectName: `${selectedObjects.length} objects`,
         });
         return true;
@@ -758,7 +739,7 @@ function setSelectionLock(locked) {
     }
 
     if (setObjectsLocked(selectedObjects, locked)) {
-        broadcastActivity(locked ? 'objects-locked' : 'objects-unlocked', {
+        broadcastActivity(locked ? ActivityKind.ObjectsLocked : ActivityKind.ObjectsUnlocked, {
             objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
         });
         return true;
@@ -768,7 +749,7 @@ function setSelectionLock(locked) {
 }
 
 function addMindMapChild(parent) {
-    if (!parent || parent.type !== 'mind-node' || !canEditObjects([parent])) {
+    if (!parent || parent.type !== ObjectType.MindNode || !canEditObjects([parent])) {
         return false;
     }
 
@@ -778,7 +759,7 @@ function addMindMapChild(parent) {
         return false;
     }
 
-    const child = createShape('mind-node', {x: bounds.x + bounds.width + 110, y: bounds.y + 8}, app.fillColor, app.lineWidth);
+    const child = createShape(ObjectType.MindNode, {x: bounds.x + bounds.width + 110, y: bounds.y + 8}, app.fillColor, app.lineWidth);
     child.x2 = child.x + Math.max(160, bounds.width);
     child.y2 = child.y + Math.max(84, bounds.height);
     child.text = 'Child node';
@@ -788,7 +769,7 @@ function addMindMapChild(parent) {
     app.objects.push(child, connector);
     setSelection([child]);
     broadcastBoardState();
-    broadcastActivity('shape-added', {
+    broadcastActivity(ActivityKind.ShapeAdded, {
         color: child.color,
         objectId: child.id,
         objectType: child.type,
@@ -873,7 +854,7 @@ function getRotateHandleAt(point) {
 
 function getConnectorEndpointAt(point) {
     const selectedObjects = getSelectedObjects();
-    const connector = selectedObjects.length === 1 && selectedObjects[0].type === 'connector'
+    const connector = selectedObjects.length === 1 && selectedObjects[0].type === ObjectType.Connector
         ? selectedObjects[0]
         : null;
 
@@ -936,7 +917,7 @@ function finishConnectorEndpointDrag(point) {
     const targetObject = findObjectAt(point);
     const otherId = target.endpoint === 'from' ? target.connector.toId : target.connector.fromId;
 
-    if (targetObject && targetObject.type !== 'connector' && targetObject.id !== otherId && !targetObject.locked && canEditObjects([target.connector, targetObject])) {
+    if (targetObject && targetObject.type !== ObjectType.Connector && targetObject.id !== otherId && !targetObject.locked && canEditObjects([target.connector, targetObject])) {
         if (target.endpoint === 'from') {
             target.connector.fromId = targetObject.id;
             target.connector.fromAnchor = getNearestAnchor(targetObject, {x: target.connector.x2, y: target.connector.y2});
@@ -947,7 +928,7 @@ function finishConnectorEndpointDrag(point) {
     }
 
     broadcastBoardState();
-    broadcastActivity('object-styled', {
+    broadcastActivity(ActivityKind.ObjectStyled, {
         objectId: target.connector.id,
         objectName: getObjectName(target.connector),
     });
@@ -1005,15 +986,15 @@ function updateResize(point) {
 
 function startPath(point) {
     setSelection([]);
-    const isEraser = app.currentTool === 'eraser';
-    const isPencil = app.currentTool === 'pencil';
-    const isFreeform = app.currentTool === 'freeform';
+    const isEraser = app.currentTool === ToolType.Eraser;
+    const isPencil = app.currentTool === ToolType.Pencil;
+    const isFreeform = app.currentTool === ToolType.Freeform;
     app.draftObject = createPath(
         point,
         isEraser ? 'white' : app.fillColor,
         isPencil ? Math.max(2, Math.round(app.lineWidth * 0.45)) : app.lineWidth,
-        app.currentTool === 'marker' ? 0.35 : isPencil ? 0.72 : 1,
-        isFreeform ? 'freeform' : 'path',
+        app.currentTool === ToolType.Marker ? 0.35 : isPencil ? 0.72 : 1,
+        isFreeform ? ObjectType.Freeform : ObjectType.Path,
     );
 }
 
@@ -1032,37 +1013,37 @@ function finishDraft() {
 
     optimizePathObject(object);
 
-    if (object.type === 'path' && object.points.length < 2) {
+    if (object.type === ObjectType.Path && object.points.length < 2) {
         render();
         return;
     }
 
-    if (object.type === 'freeform' && object.points.length < 3) {
+    if (object.type === ObjectType.Freeform && object.points.length < 3) {
         render();
         return;
     }
 
-    if (object.type === 'freeform') {
+    if (object.type === ObjectType.Freeform) {
         object.closed = true;
         object.fill = object.fill || 'transparent';
     }
 
-    if (object.type === 'template-frame' && Math.abs(object.x2 - object.x) < 320) {
+    if (object.type === ObjectType.TemplateFrame && Math.abs(object.x2 - object.x) < 320) {
         object.x2 = object.x + 520;
         object.y2 = object.y + 320;
     }
 
-    if (object.type === 'swimlane' && Math.abs(object.x2 - object.x) < 260) {
+    if (object.type === ObjectType.Swimlane && Math.abs(object.x2 - object.x) < 260) {
         object.x2 = object.x + 520;
         object.y2 = object.y + 260;
     }
 
-    if (object.type === 'kanban' && Math.abs(object.x2 - object.x) < 260) {
+    if (object.type === ObjectType.Kanban && Math.abs(object.x2 - object.x) < 260) {
         object.x2 = object.x + 460;
         object.y2 = object.y + 240;
     }
 
-    if (object.type === 'mind-node' && Math.abs(object.x2 - object.x) < 120) {
+    if (object.type === ObjectType.MindNode && Math.abs(object.x2 - object.x) < 120) {
         object.x2 = object.x + 180;
         object.y2 = object.y + 96;
     }
@@ -1072,7 +1053,7 @@ function finishDraft() {
         return;
     }
 
-    if (object.type === 'frame') {
+    if (object.type === ObjectType.Frame) {
         normalizeFrame(object);
     }
 
@@ -1082,16 +1063,16 @@ function finishDraft() {
     render();
     broadcastBoardState();
 
-    if (DRAWN_SHAPE_TOOLS.includes(object.type) || object.type === 'template-frame' || object.type === 'freeform') {
-        broadcastActivity('shape-added', {
+    if (DrawnShapeTools.includes(object.type) || object.type === ObjectType.TemplateFrame || object.type === ObjectType.Freeform) {
+        broadcastActivity(ActivityKind.ShapeAdded, {
             color: object.color,
             objectId: object.id,
             objectType: object.type,
         });
-    } else if (object.type === 'path' && app.currentTool !== 'eraser') {
-        broadcastActivity('tool-used', {
+    } else if (object.type === ObjectType.Path && app.currentTool !== ToolType.Eraser) {
+        broadcastActivity(ActivityKind.ToolUsed, {
             objectId: object.id,
-            tool: app.currentTool === 'marker' ? 'marker' : app.currentTool === 'pencil' ? 'pencil' : 'pen',
+            tool: app.currentTool === ToolType.Marker ? ToolType.Marker : app.currentTool === ToolType.Pencil ? ToolType.Pencil : ToolType.Pen,
         });
     }
 }
@@ -1159,7 +1140,7 @@ function finishLasso() {
         return;
     }
 
-    const selectedObjects = getObjectsInBounds(app.lassoBounds).filter(object => object.type !== 'connector');
+    const selectedObjects = getObjectsInBounds(app.lassoBounds).filter(object => object.type !== ObjectType.Connector);
     setSelection(selectedObjects);
     app.lassoBounds = null;
     render();
@@ -1351,7 +1332,7 @@ function loadImageFile(file, point = getCanvasPoint(window.innerWidth / 2, windo
             app.objects.push(object);
             setSelection([object]);
             broadcastBoardState();
-            broadcastActivity('image-imported', {
+            broadcastActivity(ActivityKind.ImageImported, {
                 objectId: object.id,
                 objectName: getObjectName(object),
             });
@@ -1368,7 +1349,7 @@ function importTextObject(text, point = getCanvasPoint(window.innerWidth / 2, wi
     app.objects.push(object);
     setSelection([object]);
     broadcastBoardState();
-    broadcastActivity('text-added', {
+    broadcastActivity(ActivityKind.TextAdded, {
         objectId: object.id,
         objectType: object.type,
         text: object.text,
@@ -1388,7 +1369,7 @@ function setImportedStyle(object, element) {
         object.color = stroke;
     }
 
-    if (fill && fill !== 'none' && !['line', 'arrow'].includes(object.type)) {
+    if (fill && fill !== 'none' && ![ObjectType.Line, ObjectType.Arrow].includes(object.type)) {
         object.fill = fill;
     }
 }
@@ -1409,7 +1390,7 @@ function importSvgAsObjects(svgText, point = getCanvasPoint(window.innerWidth / 
         let object = null;
 
         if (element.tagName === 'rect') {
-            object = createShape('rectangle', {x: getSvgNumber(element, 'x'), y: getSvgNumber(element, 'y')}, app.fillColor, app.lineWidth);
+            object = createShape(ObjectType.Rectangle, {x: getSvgNumber(element, 'x'), y: getSvgNumber(element, 'y')}, app.fillColor, app.lineWidth);
             object.x2 = object.x + getSvgNumber(element, 'width', 120);
             object.y2 = object.y + getSvgNumber(element, 'height', 80);
         } else if (element.tagName === 'circle' || element.tagName === 'ellipse') {
@@ -1417,11 +1398,11 @@ function importSvgAsObjects(svgText, point = getCanvasPoint(window.innerWidth / 
             const cy = getSvgNumber(element, 'cy');
             const rx = element.tagName === 'circle' ? getSvgNumber(element, 'r', 40) : getSvgNumber(element, 'rx', 60);
             const ry = element.tagName === 'circle' ? rx : getSvgNumber(element, 'ry', 40);
-            object = createShape('ellipse', {x: cx - rx, y: cy - ry}, app.fillColor, app.lineWidth);
+            object = createShape(ObjectType.Ellipse, {x: cx - rx, y: cy - ry}, app.fillColor, app.lineWidth);
             object.x2 = cx + rx;
             object.y2 = cy + ry;
         } else if (element.tagName === 'line') {
-            object = createShape('line', {x: getSvgNumber(element, 'x1'), y: getSvgNumber(element, 'y1')}, app.fillColor, app.lineWidth);
+            object = createShape(ObjectType.Line, {x: getSvgNumber(element, 'x1'), y: getSvgNumber(element, 'y1')}, app.fillColor, app.lineWidth);
             object.x2 = getSvgNumber(element, 'x2', object.x + 120);
             object.y2 = getSvgNumber(element, 'y2', object.y);
         } else if (element.tagName === 'text') {
@@ -1453,7 +1434,7 @@ function importSvgAsObjects(svgText, point = getCanvasPoint(window.innerWidth / 
     app.objects.push(...importedObjects);
     setSelection(importedObjects);
     broadcastBoardState();
-    broadcastActivity('image-imported', {
+    broadcastActivity(ActivityKind.ImageImported, {
         objectName: `${importedObjects.length} SVG objects`,
     });
     return true;
@@ -1469,7 +1450,7 @@ function importSvgFallback(svgText, point = getCanvasPoint(window.innerWidth / 2
         app.objects.push(object);
         setSelection([object]);
         broadcastBoardState();
-        broadcastActivity('image-imported', {
+        broadcastActivity(ActivityKind.ImageImported, {
             objectId: object.id,
             objectName: getObjectName(object),
         });
@@ -1538,7 +1519,7 @@ function restoreSnapshot(snapshot) {
     app.objects = cloneObjects(snapshot.objects || []);
     setSelection([]);
     broadcastBoardState({mode: 'replace'});
-    broadcastActivity('snapshot-restored');
+    broadcastActivity(ActivityKind.SnapshotRestored);
     closeSnapshotPanel();
 }
 
@@ -1609,14 +1590,14 @@ export function initEvents() {
             } else {
                 object.color = event.target.value;
             }
-        }, 'object-styled');
+        }, ActivityKind.ObjectStyled);
     });
     propertyFill?.addEventListener('change', event => {
         updateSelectedProperties(object => {
-            if (!['line', 'arrow', 'connector', 'path'].includes(object.type)) {
+            if (![ObjectType.Line, ObjectType.Arrow, ObjectType.Connector, ObjectType.Path].includes(object.type)) {
                 object.fill = event.target.value;
             }
-        }, 'object-styled');
+        }, ActivityKind.ObjectStyled);
     });
     propertyLineWidth?.addEventListener('change', event => {
         const lineWidth = Math.max(1, Math.min(80, Number(event.target.value) || 1));
@@ -1624,13 +1605,13 @@ export function initEvents() {
             if ('lineWidth' in object) {
                 object.lineWidth = lineWidth;
             }
-        }, 'object-styled');
+        }, ActivityKind.ObjectStyled);
     });
     propertyRotation?.addEventListener('change', event => {
         const rotation = Math.max(-360, Math.min(360, Number(event.target.value) || 0));
         updateSelectedProperties(object => {
             object.rotation = rotation;
-        }, 'object-rotated');
+        }, ActivityKind.ObjectRotated);
     });
     propertyLocked?.addEventListener('change', event => {
         const selectedObjects = getSelectedObjects();
@@ -1641,25 +1622,25 @@ export function initEvents() {
         }
 
         if (setObjectsLocked(selectedObjects, event.target.checked)) {
-            broadcastActivity(event.target.checked ? 'objects-locked' : 'objects-unlocked', {
+            broadcastActivity(event.target.checked ? ActivityKind.ObjectsLocked : ActivityKind.ObjectsUnlocked, {
                 objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
             });
         }
     });
     propertyText?.addEventListener('change', event => {
         updateSelectedProperties(object => {
-            if (object.type === 'frame' || object.type === 'swimlane' || object.type === 'template-frame') {
+            if (object.type === ObjectType.Frame || object.type === ObjectType.Swimlane || object.type === ObjectType.TemplateFrame) {
                 object.title = event.target.value || 'Frame';
                 return;
             }
 
-            if (object.type === 'connector') {
+            if (object.type === ObjectType.Connector) {
                 object.label = event.target.value;
                 return;
             }
 
             object.text = event.target.value;
-            if (object.type === 'list') {
+            if (object.type === ObjectType.List) {
                 object.items = event.target.value
                     .split(/\n|,/)
                     .map(item => item.trim())
@@ -1668,7 +1649,7 @@ export function initEvents() {
                 object.text = object.items.join(', ');
                 object.height = Math.max(92, 36 + object.items.length * 26);
             }
-        }, 'object-styled');
+        }, ActivityKind.ObjectStyled);
     });
     propertyFontSize?.addEventListener('change', event => {
         const fontSize = Math.max(8, Math.min(96, Number(event.target.value) || 16));
@@ -1676,27 +1657,27 @@ export function initEvents() {
             if ('fontSize' in object) {
                 object.fontSize = fontSize;
             }
-        }, 'object-styled');
+        }, ActivityKind.ObjectStyled);
     });
     propertyOpacity?.addEventListener('change', event => {
         const opacity = Math.max(5, Math.min(100, Number(event.target.value) || 100)) / 100;
         updateSelectedProperties(object => {
             object.opacity = opacity;
-        }, 'object-styled');
+        }, ActivityKind.ObjectStyled);
     });
     propertyConnectorStyle?.addEventListener('change', event => {
         updateSelectedProperties(object => {
-            if (object.type === 'connector') {
+            if (object.type === ObjectType.Connector) {
                 object.connectorStyle = event.target.value;
             }
-        }, 'object-styled');
+        }, ActivityKind.ObjectStyled);
     });
     propertyEndMarker?.addEventListener('change', event => {
         updateSelectedProperties(object => {
-            if (object.type === 'connector') {
+            if (object.type === ObjectType.Connector) {
                 object.endMarker = event.target.value;
             }
-        }, 'object-styled');
+        }, ActivityKind.ObjectStyled);
     });
     snapshotList?.addEventListener('click', event => {
         const button = event.target.closest('[data-snapshot-id]');
@@ -1830,14 +1811,14 @@ export function initEvents() {
 
             if (toolbarButton.id === 'clear') {
                 if (clearUnlockedObjects()) {
-                    broadcastActivity('board-cleared');
+                    broadcastActivity(ActivityKind.BoardCleared);
                 }
                 return;
             }
 
             if (toolbarButton.id === 'undo') {
                 if (undo()) {
-                    broadcastActivity('history-used', {
+                    broadcastActivity(ActivityKind.HistoryUsed, {
                         action: 'undo',
                     });
                 }
@@ -1846,7 +1827,7 @@ export function initEvents() {
 
             if (toolbarButton.id === 'redo') {
                 if (redo()) {
-                    broadcastActivity('history-used', {
+                    broadcastActivity(ActivityKind.HistoryUsed, {
                         action: 'redo',
                     });
                 }
@@ -1864,7 +1845,7 @@ export function initEvents() {
                 const duplicate = duplicates[0] || duplicateObject(app.selectedObjectId);
 
                 if (duplicate || duplicates.length) {
-                    broadcastActivity('object-duplicated', {
+                    broadcastActivity(ActivityKind.ObjectDuplicated, {
                         objectId: duplicates.length === 1 ? duplicates[0].id : duplicate?.id,
                         objectName: duplicates.length > 1 ? `${duplicates.length} objects` : getObjectName(duplicate || duplicates[0]),
                     });
@@ -1882,7 +1863,7 @@ export function initEvents() {
                 const groupId = groupObjects(selectedObjects);
 
                 if (groupId) {
-                    broadcastActivity('objects-grouped', {
+                    broadcastActivity(ActivityKind.ObjectsGrouped, {
                         objectName: `${selectedObjects.length} objects`,
                     });
                 }
@@ -1897,7 +1878,7 @@ export function initEvents() {
                 }
 
                 if (ungroupObjects(selectedObjects)) {
-                    broadcastActivity('objects-ungrouped', {
+                    broadcastActivity(ActivityKind.ObjectsUngrouped, {
                         objectName: `${selectedObjects.length} objects`,
                     });
                 }
@@ -1913,7 +1894,7 @@ export function initEvents() {
                 }
 
                 if (setObjectsLocked(selectedObjects, locked)) {
-                    broadcastActivity(locked ? 'objects-locked' : 'objects-unlocked', {
+                    broadcastActivity(locked ? ActivityKind.ObjectsLocked : ActivityKind.ObjectsUnlocked, {
                         objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
                     });
                 }
@@ -1931,7 +1912,7 @@ export function initEvents() {
                 const object = moveObjectLayer(app.selectedObjectId, direction);
 
                 if (object) {
-                    broadcastActivity('object-layered', {
+                    broadcastActivity(ActivityKind.ObjectLayered, {
                         direction,
                         objectId: object.id,
                         objectName: getObjectName(object),
@@ -1986,7 +1967,7 @@ export function initEvents() {
                 }].slice(-10);
                 localStorage.setItem(`whiteboard:snapshots:${app.roomId}`, JSON.stringify(storedSnapshots));
                 renderSnapshotPanel();
-                broadcastActivity('snapshot-created');
+                broadcastActivity(ActivityKind.SnapshotCreated);
                 return;
             }
 
@@ -2036,7 +2017,7 @@ export function initEvents() {
         const point = getCanvasPoint(event.clientX, event.clientY);
         const object = findObjectAt(point);
 
-        if (!object || !TEXT_EDITABLE_TYPES.includes(object.type)) {
+        if (!object || !TextEditableObjectTypes.includes(object.type)) {
             return;
         }
 
@@ -2064,12 +2045,12 @@ export function initEvents() {
 
         const point = getCanvasPoint(app.mouse.x, app.mouse.y);
 
-        if (app.currentTool === 'pan') {
+        if (app.currentTool === ToolType.Pan) {
             app.drag.last = {x: ev.clientX, y: ev.clientY};
             return;
         }
 
-        if (app.currentTool === 'select') {
+        if (app.currentTool === ToolType.Select) {
             const connectorEndpoint = getConnectorEndpointAt(point);
 
             if (beginConnectorEndpointDrag(connectorEndpoint)) {
@@ -2096,7 +2077,7 @@ export function initEvents() {
             return;
         }
 
-        if (app.currentTool === 'lasso') {
+        if (app.currentTool === ToolType.Lasso) {
             app.drag.start = point;
             app.drag.last = point;
             app.lassoBounds = getNormalizedBounds(point, point);
@@ -2104,12 +2085,12 @@ export function initEvents() {
             return;
         }
 
-        if (app.currentTool === 'object-eraser') {
+        if (app.currentTool === ToolType.ObjectEraser) {
             const object = findObjectAt(point);
 
             if (object && !object.locked && canEditObjects([object])) {
                 const deletedObject = deleteObjectById(object.id);
-                broadcastActivity('object-deleted', {
+                broadcastActivity(ActivityKind.ObjectDeleted, {
                     objectName: getObjectName(deletedObject),
                 });
             } else {
@@ -2119,13 +2100,13 @@ export function initEvents() {
             return;
         }
 
-        if (app.currentTool === 'eraser') {
+        if (app.currentTool === ToolType.Eraser) {
             saveHistory();
             erasePathAt(point, app.lineWidth);
             return;
         }
 
-        if (app.currentTool === 'fill') {
+        if (app.currentTool === ToolType.Fill) {
             const targetObject = findObjectAt(point);
 
             if (targetObject && !canEditObjects([targetObject])) {
@@ -2135,7 +2116,7 @@ export function initEvents() {
             const fillResult = floodFill(app.mouse.x, app.mouse.y, hexToRgba(app.fillColor));
 
             if (fillResult) {
-                broadcastActivity('fill-used', {
+                broadcastActivity(ActivityKind.FillUsed, {
                     color: app.fillColor,
                     objectId: fillResult.objectId,
                     objectType: fillResult.objectType,
@@ -2146,7 +2127,7 @@ export function initEvents() {
             return;
         }
 
-        if (app.currentTool === 'connector') {
+        if (app.currentTool === ToolType.Connector) {
             const object = findObjectAt(point);
 
             if (object && !object.locked && canEditObjects([object])) {
@@ -2157,12 +2138,12 @@ export function initEvents() {
             return;
         }
 
-        if (app.currentTool === 'laser') {
+        if (app.currentTool === ToolType.Laser) {
             sendLaserPosition(point, true);
             return;
         }
 
-        if (app.currentTool === 'reaction') {
+        if (app.currentTool === ToolType.Reaction) {
             if (app.reactionEmoji) {
                 sendReaction(app.reactionEmoji, point);
                 app.reactionEmoji = null;
@@ -2173,7 +2154,7 @@ export function initEvents() {
             return;
         }
 
-        if (['text', 'sticky', 'callout', 'list', 'label', 'comment'].includes(app.currentTool)) {
+        if ([ObjectType.Text, ObjectType.Sticky, ObjectType.Callout, ObjectType.List, ObjectType.Label, ObjectType.Comment].includes(app.currentTool)) {
             app.isDrawing = false;
             showToolbar();
             setSelection([]);
@@ -2181,13 +2162,13 @@ export function initEvents() {
             return;
         }
 
-        if (app.currentTool === 'frame') {
+        if (app.currentTool === ToolType.Frame) {
             setSelection([]);
             app.draftObject = createFrame(point, 'Frame');
             return;
         }
 
-        if (DRAWN_SHAPE_TOOLS.includes(app.currentTool)) {
+        if (DrawnShapeTools.includes(app.currentTool)) {
             startShape(point);
             return;
         }
@@ -2208,12 +2189,12 @@ export function initEvents() {
 
         const point = getCanvasPoint(app.mouse.x, app.mouse.y);
 
-        if (app.currentTool === 'pan') {
+        if (app.currentTool === ToolType.Pan) {
             movePan(ev);
             return;
         }
 
-        if (app.currentTool === 'select') {
+        if (app.currentTool === ToolType.Select) {
             updateConnectorEndpointDrag(point);
             if (app.drag.connectorEndpoint) {
                 return;
@@ -2230,22 +2211,22 @@ export function initEvents() {
             return;
         }
 
-        if (app.currentTool === 'lasso') {
+        if (app.currentTool === ToolType.Lasso) {
             updateLasso(point);
             return;
         }
 
-        if (app.currentTool === 'laser') {
+        if (app.currentTool === ToolType.Laser) {
             sendLaserPosition(point, true);
             return;
         }
 
-        if (app.currentTool === 'eraser') {
+        if (app.currentTool === ToolType.Eraser) {
             erasePathAt(point, app.lineWidth);
             return;
         }
 
-        if (DRAWN_SHAPE_TOOLS.includes(app.currentTool)) {
+        if (DrawnShapeTools.includes(app.currentTool)) {
             updateDraftShape(point);
             return;
         }
@@ -2259,10 +2240,10 @@ export function initEvents() {
         deactivateMovingToolbar();
 
         finishDraft();
-        if (app.currentTool === 'lasso') {
+        if (app.currentTool === ToolType.Lasso) {
             finishLasso();
         }
-        if (app.currentTool === 'connector' && app.drag.connectorStartId) {
+        if (app.currentTool === ToolType.Connector && app.drag.connectorStartId) {
             const point = getCanvasPoint(app.mouse.x, app.mouse.y);
             const startObject = app.objects.find(object => object.id === app.drag.connectorStartId);
             const endObject = findObjectAt(point);
@@ -2273,40 +2254,40 @@ export function initEvents() {
                 app.objects.push(connector);
                 setSelection([connector]);
                 broadcastBoardState();
-                broadcastActivity('shape-added', {
+                broadcastActivity(ActivityKind.ShapeAdded, {
                     color: connector.color,
                     objectId: connector.id,
                     objectType: connector.type,
                 });
             }
         }
-        if (app.currentTool === 'laser') {
+        if (app.currentTool === ToolType.Laser) {
             sendLaserPosition(getCanvasPoint(app.mouse.x, app.mouse.y), false);
         }
-        if (app.currentTool === 'select' && app.drag.rotateStart && app.drag.moved) {
+        if (app.currentTool === ToolType.Select && app.drag.rotateStart && app.drag.moved) {
             const selectedObjects = getSelectedObjects();
             broadcastBoardState();
-            broadcastActivity('object-rotated', {
+            broadcastActivity(ActivityKind.ObjectRotated, {
                 objectId: selectedObjects.length === 1 ? selectedObjects[0].id : undefined,
                 objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
             });
         }
-        if (app.currentTool === 'select' && app.drag.connectorEndpoint && app.drag.moved) {
+        if (app.currentTool === ToolType.Select && app.drag.connectorEndpoint && app.drag.moved) {
             finishConnectorEndpointDrag(getCanvasPoint(app.mouse.x, app.mouse.y));
         }
-        if (app.currentTool === 'select' && app.drag.resizeHandle && app.drag.moved) {
+        if (app.currentTool === ToolType.Select && app.drag.resizeHandle && app.drag.moved) {
             const selectedObjects = getSelectedObjects();
             broadcastBoardState();
-            broadcastActivity('object-resized', {
+            broadcastActivity(ActivityKind.ObjectResized, {
                 objectId: selectedObjects.length === 1 ? selectedObjects[0].id : undefined,
                 objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
             });
         }
-        if (app.currentTool === 'select' && app.drag.moved && !app.drag.connectorEndpoint) {
+        if (app.currentTool === ToolType.Select && app.drag.moved && !app.drag.connectorEndpoint) {
             const selectedObjects = getSelectedObjects();
             broadcastBoardState();
             if (!app.drag.resizeHandle) {
-                broadcastActivity('object-moved', {
+                broadcastActivity(ActivityKind.ObjectMoved, {
                     objectId: selectedObjects.length === 1 ? selectedObjects[0].id : undefined,
                     objectName: selectedObjects.length === 1 ? getObjectName(selectedObjects[0]) : `${selectedObjects.length} objects`,
                 });
@@ -2332,7 +2313,7 @@ export function initEvents() {
         const modifier = event.metaKey || event.ctrlKey;
         const selectedObjects = getSelectedObjects();
 
-        if (event.key === 'Tab' && selectedObjects.length === 1 && selectedObjects[0].type === 'mind-node') {
+        if (event.key === 'Tab' && selectedObjects.length === 1 && selectedObjects[0].type === ObjectType.MindNode) {
             event.preventDefault();
             addMindMapChild(selectedObjects[0]);
             return;
@@ -2341,7 +2322,7 @@ export function initEvents() {
         if (modifier && event.key.toLowerCase() === 'z') {
             event.preventDefault();
             if (event.shiftKey ? redo() : undo()) {
-                broadcastActivity('history-used', {
+                broadcastActivity(ActivityKind.HistoryUsed, {
                     action: event.shiftKey ? 'redo' : 'undo',
                 });
             }
@@ -2351,7 +2332,7 @@ export function initEvents() {
         if (modifier && event.key.toLowerCase() === 'y') {
             event.preventDefault();
             if (redo()) {
-                broadcastActivity('history-used', {
+                broadcastActivity(ActivityKind.HistoryUsed, {
                     action: 'redo',
                 });
             }
@@ -2398,7 +2379,7 @@ export function initEvents() {
             return;
         }
 
-        broadcastActivity('object-deleted', {
+        broadcastActivity(ActivityKind.ObjectDeleted, {
             objectName: deletedObjects.length === 1 ? getObjectName(deletedObjects[0]) : `${deletedObjects.length} objects`,
         });
     });

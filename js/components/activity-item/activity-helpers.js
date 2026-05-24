@@ -1,3 +1,5 @@
+import {ActivityKind} from '../../enums/activity-kind.js';
+import {ObjectType} from '../../enums/object-type.js';
 import {activityIcons} from './activity-icons.js';
 import {objectLabels} from './object-labels.js';
 
@@ -13,102 +15,102 @@ export function getActivityText(event) {
     const user = event.user?.name || event.userName || 'Guest';
     const details = event.details || {};
 
-    if (event.kind === 'user-joined') {
+    if (event.kind === ActivityKind.UserJoined) {
         return `${user} joined the room`;
     }
 
-    if (event.kind === 'user-left') {
+    if (event.kind === ActivityKind.UserLeft) {
         return `${user} left the room`;
     }
 
-    if (event.kind === 'shape-added') {
+    if (event.kind === ActivityKind.ShapeAdded) {
         let label = getObjectLabel(details.objectType);
         label = articleFor(label) + ' ' + label;
         return `${user} added ${label} with color ${details.color}`;
     }
 
-    if (event.kind === 'object-deleted') {
+    if (event.kind === ActivityKind.ObjectDeleted) {
         return `${user} deleted ${details.objectName}`;
     }
 
-    if (event.kind === 'tool-used') {
+    if (event.kind === ActivityKind.ToolUsed) {
         return `${user} used ${getObjectLabel(details.tool)}`;
     }
 
-    if (event.kind === 'text-added') {
-        const label = getObjectLabel(details.objectType || 'text');
+    if (event.kind === ActivityKind.TextAdded) {
+        const label = getObjectLabel(details.objectType || ObjectType.Text);
         return `${user} added ${label} "${details.text}"`;
     }
 
-    if (event.kind === 'sticky-added') {
+    if (event.kind === ActivityKind.StickyAdded) {
         return `${user} added note "${details.text}"`;
     }
 
-    if (event.kind === 'comment-added') {
+    if (event.kind === ActivityKind.CommentAdded) {
         return `${user} added comment "${details.text}"`;
     }
 
-    if (event.kind === 'history-used') {
+    if (event.kind === ActivityKind.HistoryUsed) {
         return `${user} used ${details.action === 'redo' ? 'redo' : 'undo'}`;
     }
 
-    if (event.kind === 'fill-used') {
+    if (event.kind === ActivityKind.FillUsed) {
         return `${user} filled ${getObjectLabel(details.objectType)} with color ${details.color}`;
     }
 
-    if (event.kind === 'object-moved') {
+    if (event.kind === ActivityKind.ObjectMoved) {
         return `${user} moved ${details.objectName}`;
     }
 
-    if (event.kind === 'object-resized') {
+    if (event.kind === ActivityKind.ObjectResized) {
         return `${user} resized ${details.objectName}`;
     }
 
-    if (event.kind === 'object-rotated') {
+    if (event.kind === ActivityKind.ObjectRotated) {
         return `${user} rotated ${details.objectName}`;
     }
 
-    if (event.kind === 'object-styled') {
+    if (event.kind === ActivityKind.ObjectStyled) {
         return `${user} updated ${details.objectName}`;
     }
 
-    if (event.kind === 'objects-grouped') {
+    if (event.kind === ActivityKind.ObjectsGrouped) {
         return `${user} grouped ${details.objectName}`;
     }
 
-    if (event.kind === 'objects-ungrouped') {
+    if (event.kind === ActivityKind.ObjectsUngrouped) {
         return `${user} ungrouped ${details.objectName}`;
     }
 
-    if (event.kind === 'objects-locked') {
+    if (event.kind === ActivityKind.ObjectsLocked) {
         return `${user} locked ${details.objectName}`;
     }
 
-    if (event.kind === 'objects-unlocked') {
+    if (event.kind === ActivityKind.ObjectsUnlocked) {
         return `${user} unlocked ${details.objectName}`;
     }
 
-    if (event.kind === 'image-imported') {
+    if (event.kind === ActivityKind.ImageImported) {
         return `${user} imported ${details.objectName}`;
     }
 
-    if (event.kind === 'snapshot-created') {
+    if (event.kind === ActivityKind.SnapshotCreated) {
         return `${user} created a snapshot`;
     }
 
-    if (event.kind === 'snapshot-restored') {
+    if (event.kind === ActivityKind.SnapshotRestored) {
         return `${user} restored a snapshot`;
     }
 
-    if (event.kind === 'object-duplicated') {
+    if (event.kind === ActivityKind.ObjectDuplicated) {
         return `${user} duplicated ${details.objectName}`;
     }
 
-    if (event.kind === 'object-layered') {
+    if (event.kind === ActivityKind.ObjectLayered) {
         return `${user} sent ${details.objectName} ${details.direction === 'backward' ? 'backward' : 'forward'}`;
     }
 
-    if (event.kind === 'board-cleared') {
+    if (event.kind === ActivityKind.BoardCleared) {
         return `${user} cleared the board`;
     }
 

@@ -1,3 +1,5 @@
+import {ObjectType} from './enums/object-type.js';
+
 export const CURRENT_SCHEMA_VERSION = 5;
 
 export function migrateObject(object) {
@@ -9,13 +11,13 @@ export function migrateObject(object) {
         ...object,
     };
 
-    if (migrated.type === 'path' || migrated.type === 'freeform') {
+    if (migrated.type === ObjectType.Path || migrated.type === ObjectType.Freeform) {
         migrated.opacity = migrated.opacity ?? 1;
-        migrated.closed = migrated.type === 'freeform' ? migrated.closed ?? true : migrated.closed ?? false;
+        migrated.closed = migrated.type === ObjectType.Freeform ? migrated.closed ?? true : migrated.closed ?? false;
         migrated.fill = migrated.closed ? migrated.fill || 'transparent' : migrated.fill;
     }
 
-    if (migrated.type === 'connector') {
+    if (migrated.type === ObjectType.Connector) {
         migrated.lineWidth = migrated.lineWidth || 3;
         migrated.connectorStyle = migrated.connectorStyle || 'orthogonal';
         migrated.endMarker = migrated.endMarker || 'arrow';
@@ -25,7 +27,7 @@ export function migrateObject(object) {
         migrated.route = migrated.route || [];
     }
 
-    if (migrated.type === 'image') {
+    if (migrated.type === ObjectType.Image) {
         migrated.rotation = migrated.rotation || 0;
         migrated.legacyBitmapFill = Boolean(migrated.legacyBitmapFill);
     }

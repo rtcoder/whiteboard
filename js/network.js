@@ -1,5 +1,9 @@
 import {app} from './app.js';
 import {addActivityEntries, refreshActivityLog} from './activity.js';
+import {BoardOperationKind} from './enums/board-operation-kind.js';
+import {ConnectionStatus, ConnectionStatusLabels} from './enums/connection-status';
+import {NetworkMessageType} from './enums/network-message-type.js';
+import {ObjectType} from './enums/object-type.js';
 import {CURRENT_SCHEMA_VERSION, migrateObject, migrateObjects} from './schema.js';
 import {getUserAvatar} from './utils.js';
 
@@ -100,13 +104,13 @@ function loadLocalBoardState() {
 function deserializeObject(object) {
     object = migrateObject(object);
 
-    if (object.type !== 'bitmap') {
+    if (object.type !== ObjectType.Bitmap) {
         return object;
     }
 
     return migrateObject({
         id: object.id,
-        type: 'image',
+        type: ObjectType.Image,
         x: object.x,
         y: object.y,
         width: object.width || object.imageData?.width || 1,
@@ -131,8 +135,8 @@ function syncLocalObjectCache(objects) {
 function markBoardStatePending(revision, objects) {
     pendingBoardStates.set(revision, objects);
     clearTimeout(syncedStatusTimer);
-    setConnectionStatus('saving');
-    syncedStatusTimer = setTimeout(() => setConnectionStatus('connected'), 8000);
+    setConnectionStatus(ConnectionStatus.Saving);
+    syncedStatusTimer = setTimeout(() => setConnectionStatus(ConnectionStatus.Connected), 8000);
 }
 
 function acknowledgeBoardState(clientRevision) {
@@ -149,11 +153,11 @@ function acknowledgeBoardState(clientRevision) {
     clearTimeout(syncedStatusTimer);
 
     if (pendingBoardStates.size) {
-        setConnectionStatus('saving');
-        syncedStatusTimer = setTimeout(() => setConnectionStatus('connected'), 8000);
+        setConnectionStatus(ConnectionStatus.Saving);
+        syncedStatusTimer = setTimeout(() => setConnectionStatus(ConnectionStatus.Connected), 8000);
     } else {
-        setConnectionStatus('synced');
-        syncedStatusTimer = setTimeout(() => setConnectionStatus('connected'), 2000);
+        setConnectionStatus(ConnectionStatus.Synced);
+        syncedStatusTimer = setTimeout(() => setConnectionStatus(ConnectionStatus.Connected), 2000);
     }
 }
 
@@ -170,12 +174,12 @@ function getBoardOperation(objects) {
 
     return {
         kind: deleteIds.length
-            ? 'object-deleted'
+            ? BoardOperationKind.ObjectDeleted
             : created.length && !updated.length
-                ? 'object-created'
+                ? BoardOperationKind.ObjectCreated
                 : orderChanged && !upsert.length
-                    ? 'objects-reordered'
-                    : 'object-updated',
+                    ? BoardOperationKind.ObjectsReordered
+                    : BoardOperationKind.ObjectUpdated,
         upsert,
         deleteIds,
         orderIds: orderChanged ? orderIds : undefined,
@@ -212,13 +216,13 @@ function send(message) {
     }
 
     const payload = JSON.stringify(message);
-    if (message.type !== 'cursor' || DEBUG_CURSOR) {
+    if (message.type !== NetworkMessageType.Cursor || DEBUG_CURSOR) {
         logNetwork('send', {
             type: message.type,
             revision: message.revision,
             bytes: payload.length,
             objects: message.objects?.length,
-            bitmapObjects: message.objects?.filter(object => object.type === 'bitmap').length,
+            bitmapObjects: message.objects?.filter(object => object.type === ObjectType.Bitmap).length,
         });
     }
     socket.send(payload);
@@ -236,14 +240,7 @@ function setConnectionStatus(state) {
     }
 
     status.dataset.state = state;
-    status.textContent = {
-        connecting: 'Connecting',
-        connected: 'Connected',
-        reconnecting: 'Reconnecting',
-        offline: 'Offline',
-        saving: 'Saving\u2026',
-        synced: 'Synced',
-    }[state] || state;
+    status.textContent = ConnectionStatusLabels[state] || state;
 }
 
 export function getClientId() {
@@ -286,7 +283,7 @@ export function broadcastBoardState({mode = 'merge'} = {}) {
             orderChanged: Boolean(operation.orderIds),
         });
         const sent = send({
-            type: 'board-operation',
+            type: NetworkMessageType.BoardOperation,
             revision,
             operation,
         });
@@ -300,11 +297,11 @@ export function broadcastBoardState({mode = 'merge'} = {}) {
         revision,
         mode,
         objects: objects.length,
-        bitmapObjects: objects.filter(object => object.type === 'bitmap').length,
+        bitmapObjects: objects.filter(object => object.type === ObjectType.Bitmap).length,
     });
 
     const sent = send({
-        type: 'board-state',
+        type: NetworkMessageType.BoardState,
         revision,
         mode,
         objects,
@@ -330,7 +327,7 @@ export function broadcastActivity(kind, details = {}) {
 
     addActivityEntries([event]);
     send({
-        type: 'activity',
+        type: NetworkMessageType.Activity,
         event,
     });
 }
@@ -345,7 +342,7 @@ export function sendCursorPosition(point) {
     lastCursorSentAt = now;
 
     send({
-        type: 'cursor',
+        type: NetworkMessageType.Cursor,
         x: point.x,
         y: point.y,
         name: app.localUser.name,
@@ -356,7 +353,7 @@ export function sendCursorPosition(point) {
 
 export function sendSelectionState(objectIds = []) {
     send({
-        type: 'selection',
+        type: NetworkMessageType.Selection,
         objectIds,
         name: app.localUser.name,
         color: app.localUser.color,
@@ -374,7 +371,7 @@ export function sendObjectLockState(objectIds = [], force = false) {
 
     lastObjectLockSentAt = now;
     send({
-        type: 'object-lock',
+        type: NetworkMessageType.ObjectLock,
         objectIds,
         name: app.localUser.name,
         color: app.localUser.color,
@@ -384,7 +381,7 @@ export function sendObjectLockState(objectIds = [], force = false) {
 
 export function sendReaction(emoji, point) {
     send({
-        type: 'reaction',
+        type: NetworkMessageType.Reaction,
         emoji,
         x: point.x,
         y: point.y,
@@ -403,7 +400,7 @@ export function sendLaserPosition(point, active = true) {
 
     lastLaserSentAt = now;
     send({
-        type: 'laser',
+        type: NetworkMessageType.Laser,
         active,
         x: point.x,
         y: point.y,
@@ -425,7 +422,7 @@ export function initNetwork({render, onPeersChange}) {
 
     const connect = () => {
         window.clearTimeout(reconnectTimer);
-        setConnectionStatus(reconnectAttempts ? 'reconnecting' : 'connecting');
+        setConnectionStatus(reconnectAttempts ? ConnectionStatus.Reconnecting : ConnectionStatus.Connecting);
         const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
         const params = new URLSearchParams({
             room: app.roomId,
@@ -443,7 +440,7 @@ export function initNetwork({render, onPeersChange}) {
 
         socket.addEventListener('open', () => {
             reconnectAttempts = 0;
-            setConnectionStatus('connected');
+            setConnectionStatus(ConnectionStatus.Connected);
             logNetwork('open', {
                 roomId: app.roomId,
                 clientId,
@@ -459,19 +456,19 @@ export function initNetwork({render, onPeersChange}) {
             });
 
             if (manualClose) {
-                setConnectionStatus('offline');
+                setConnectionStatus(ConnectionStatus.Offline);
                 return;
             }
 
             reconnectAttempts += 1;
-            setConnectionStatus(reconnectAttempts > 1 ? 'offline' : 'reconnecting');
+            setConnectionStatus(reconnectAttempts > 1 ? ConnectionStatus.Offline : ConnectionStatus.Reconnecting);
             const delay = Math.min(MAX_RECONNECT_DELAY, 600 * reconnectAttempts);
             reconnectTimer = window.setTimeout(connect, delay);
         });
 
         socket.addEventListener('error', event => {
             logNetwork('error', event);
-            setConnectionStatus('offline');
+            setConnectionStatus(ConnectionStatus.Offline);
         });
 
         socket.addEventListener('message', event => {
@@ -487,7 +484,7 @@ export function initNetwork({render, onPeersChange}) {
             return;
         }
 
-        if (message.type !== 'cursor' || DEBUG_CURSOR) {
+        if (message.type !== NetworkMessageType.Cursor || DEBUG_CURSOR) {
             logNetwork('receive', {
                 type: message.type,
                 revision: message.revision,
@@ -495,11 +492,11 @@ export function initNetwork({render, onPeersChange}) {
                 objects: message.objects?.length,
                 boardState: message.boardState?.length,
                 locks: message.locks?.length,
-                bitmapObjects: message.objects?.filter(object => object.type === 'bitmap').length,
+                bitmapObjects: message.objects?.filter(object => object.type === ObjectType.Bitmap).length,
             });
         }
 
-        if (message.type === 'init') {
+        if (message.type === NetworkMessageType.Init) {
             clientId = message.clientId;
             app.clientId = clientId;
             refreshLocalUserAvatar();
@@ -533,7 +530,7 @@ export function initNetwork({render, onPeersChange}) {
             return;
         }
 
-        if (message.type === 'board-ack') {
+        if (message.type === NetworkMessageType.BoardAck) {
             currentRevision = Math.max(currentRevision, message.revision || 0);
             logNetwork('board-state acknowledged', {
                 revision: currentRevision,
@@ -542,11 +539,11 @@ export function initNetwork({render, onPeersChange}) {
             return;
         }
 
-        if (message.type === 'board-reject') {
+        if (message.type === NetworkMessageType.BoardReject) {
             currentRevision = Math.max(currentRevision, message.revision || 0);
             pendingBoardStates = new Map();
             clearTimeout(syncedStatusTimer);
-            setConnectionStatus('connected');
+            setConnectionStatus(ConnectionStatus.Connected);
             const incomingObjects = migrateObjects(message.boardState || []);
             suppressBroadcast = true;
             app.objects = incomingObjects.map(deserializeObject);
@@ -567,7 +564,7 @@ export function initNetwork({render, onPeersChange}) {
             return;
         }
 
-        if (message.type === 'object-lock-state') {
+        if (message.type === NetworkMessageType.ObjectLockState) {
             currentRevision = Math.max(currentRevision, message.revision || 0);
             app.objectLocks = new Map((message.locks || []).map(lock => [lock.objectId, lock]));
 
@@ -580,18 +577,18 @@ export function initNetwork({render, onPeersChange}) {
             return;
         }
 
-        if (message.type === 'error') {
+        if (message.type === NetworkMessageType.Error) {
             logNetwork('server error', {
                 code: message.code,
                 message: message.message,
             });
             clearTimeout(syncedStatusTimer);
-            setConnectionStatus('connected');
+            setConnectionStatus(ConnectionStatus.Connected);
             window.whiteboardShowStatus?.(message.message || 'Sync error');
             return;
         }
 
-        if (message.type === 'board-state') {
+        if (message.type === NetworkMessageType.BoardState) {
             currentRevision = Math.max(currentRevision, message.revision || 0);
             const incomingObjects = migrateObjects(message.objects || []);
             suppressBroadcast = true;
@@ -608,12 +605,12 @@ export function initNetwork({render, onPeersChange}) {
             logNetwork('applied remote board-state', {
                 revision: currentRevision,
                 objects: app.objects.length,
-                bitmapObjects: app.objects.filter(object => object.type === 'bitmap').length,
+                bitmapObjects: app.objects.filter(object => object.type === ObjectType.Bitmap).length,
             });
             return;
         }
 
-        if (message.type === 'board-operation') {
+        if (message.type === NetworkMessageType.BoardOperation) {
             currentRevision = Math.max(currentRevision, message.revision || 0);
             suppressBroadcast = true;
             applyBoardOperation(message.operation);
@@ -635,7 +632,7 @@ export function initNetwork({render, onPeersChange}) {
             return;
         }
 
-        if (message.type === 'cursor') {
+        if (message.type === NetworkMessageType.Cursor) {
             const fallbackAvatar = getUserAvatar(message.name || 'Guest', `${message.name || 'Guest'}:${message.clientId}`);
             const existingCollaborator = app.collaborators.get(message.clientId) || {};
             app.collaborators.set(message.clientId, {
@@ -651,7 +648,7 @@ export function initNetwork({render, onPeersChange}) {
             return;
         }
 
-        if (message.type === 'selection') {
+        if (message.type === NetworkMessageType.Selection) {
             const fallbackAvatar = getUserAvatar(message.name || 'Guest', `${message.name || 'Guest'}:${message.clientId}`);
             const collaborator = app.collaborators.get(message.clientId) || {
                 id: message.clientId,
@@ -667,7 +664,7 @@ export function initNetwork({render, onPeersChange}) {
             return;
         }
 
-        if (message.type === 'laser') {
+        if (message.type === NetworkMessageType.Laser) {
             const fallbackAvatar = getUserAvatar(message.name || 'Guest', `${message.name || 'Guest'}:${message.clientId}`);
             const collaborator = app.collaborators.get(message.clientId) || {
                 id: message.clientId,
@@ -682,7 +679,7 @@ export function initNetwork({render, onPeersChange}) {
             return;
         }
 
-        if (message.type === 'reaction') {
+        if (message.type === NetworkMessageType.Reaction) {
             const fallbackAvatar = getUserAvatar(message.name || 'Guest', `${message.name || 'Guest'}:${message.clientId}`);
             const collaborator = app.collaborators.get(message.clientId) || {
                 id: message.clientId,
@@ -705,12 +702,12 @@ export function initNetwork({render, onPeersChange}) {
             return;
         }
 
-        if (message.type === 'activity') {
+        if (message.type === NetworkMessageType.Activity) {
             addActivityEntries([message.event]);
             return;
         }
 
-        if (message.type === 'peer-left') {
+        if (message.type === NetworkMessageType.PeerLeft) {
             app.collaborators.delete(message.clientId);
             for (const [objectId, lock] of app.objectLocks) {
                 if (lock.clientId === message.clientId) {

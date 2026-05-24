@@ -1,6 +1,7 @@
 import {getObjectLabel} from './components/activity-item/activity-helpers.js';
 import {ActivityItemElement} from './components/activity-item/activity-item.js';
 import {app} from './app.js';
+import {ActivityKind} from './enums/activity-kind.js';
 
 const activityPanel = document.querySelector('.activity-panel');
 const activityToggle = document.querySelector('.activity-toggle');
@@ -19,15 +20,15 @@ export function getObjectName(object) {
 }
 
 function getActivityFilterGroup(kind) {
-    if (kind === 'user-joined' || kind === 'user-left') {
+    if (kind === ActivityKind.UserJoined || kind === ActivityKind.UserLeft) {
         return 'collaboration';
     }
 
-    if (kind === 'history-used' || kind === 'snapshot-created' || kind === 'snapshot-restored') {
+    if (kind === ActivityKind.HistoryUsed || kind === ActivityKind.SnapshotCreated || kind === ActivityKind.SnapshotRestored) {
         return 'history';
     }
 
-    if (kind === 'text-added' || kind === 'sticky-added' || kind === 'comment-added') {
+    if (kind === ActivityKind.TextAdded || kind === ActivityKind.StickyAdded || kind === ActivityKind.CommentAdded) {
         return 'text';
     }
 

@@ -1,9 +1,12 @@
+import {ConnectionStatus} from './enums/connection-status.js';
+import {ToolType} from './enums/tool-type.js';
 import {getUserAvatar} from './utils.js';
 
 const storedUserName = localStorage.getItem('whiteboard:userName') || `Guest ${Math.floor(Math.random() * 90 + 10)}`;
 const storedClientId = localStorage.getItem('whiteboard:clientId') || crypto.randomUUID();
 localStorage.setItem('whiteboard:clientId', storedClientId);
 const storedUserAvatar = getUserAvatar(storedUserName, `${storedUserName}:${storedClientId}`);
+
 export const app = {
     svg: null,
     board: {
@@ -12,7 +15,7 @@ export const app = {
     },
     cursor: null,
     allTools: [],
-    currentTool: 'pen',
+    currentTool: ToolType.Pen,
     fillColor: 'black',
     fillTolerance: 64,
     lineWidth: 5,
@@ -47,7 +50,7 @@ export const app = {
     },
     collaborators: new Map(),
     objectLocks: new Map(),
-    connectionState: 'connecting',
+    connectionState: ConnectionStatus.Connecting,
     activityLog: [],
     mouse: {
         x: 0,
