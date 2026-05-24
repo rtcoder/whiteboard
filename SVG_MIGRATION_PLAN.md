@@ -74,7 +74,7 @@ Rendering and editing flow:
 - [x] Move hit testing fully to SVG DOM node picking.
 - [x] Replace bitmap fill creation with SVG object/path fill.
 - [x] Migrate legacy bitmap fills to SVG image objects.
-- [ ] Remove remaining full-state sync paths outside init/recovery/snapshot restore.
+- [x] Remove remaining full-state sync paths outside init/recovery/snapshot restore.
 
 ## Implementation Groups
 

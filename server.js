@@ -787,6 +787,11 @@ server.on('upgrade', (req, socket) => {
         }
 
         if (message.type === 'board-state') {
+            if (message.mode !== 'replace') {
+                sendError(socket, 'board-state-requires-replace', 'Full board state sync requires replace mode.');
+                return;
+            }
+
             const oversizedBitmapIds = getOversizedBitmapIds(message.objects || []);
 
             if (oversizedBitmapIds.length) {

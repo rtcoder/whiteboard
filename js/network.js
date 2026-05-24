@@ -601,9 +601,6 @@ export function initNetwork({render, onPeersChange}) {
             renderBoard();
             refreshActivityLog();
             updatePeers();
-            if (!hasServerSnapshot && boardState.length) {
-                broadcastBoardState({ mode: 'replace' });
-            }
             return;
         }
 

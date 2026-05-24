@@ -301,6 +301,24 @@ async function run() {
     });
     assert.equal((await openTwo.waitFor('board-reject')).reason, 'locked-object');
 
+    openTwo.send({
+        type: 'board-state',
+        revision: 3,
+        mode: 'merge',
+        objects: [{id: 'shape-c', type: 'rectangle'}],
+    });
+    assert.equal((await openTwo.waitFor('error')).code, 'board-state-requires-replace');
+
+    openOne.send({
+        type: 'board-state',
+        revision: 4,
+        mode: 'replace',
+        objects: [{id: 'snapshot-shape', type: 'rectangle'}],
+    });
+    await openOne.waitFor('board-ack');
+    const snapshotMessage = await openTwo.waitFor('board-state');
+    assert.deepEqual(snapshotMessage.objects.map(object => object.id), ['snapshot-shape']);
+
     openOne.close();
     openTwo.close();
 
