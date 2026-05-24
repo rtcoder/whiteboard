@@ -63,7 +63,7 @@ This file tracks implemented tools, planned features, and useful next steps for 
 - [x] Follow user, so the viewport tracks another participant.
 - [x] Laser pointer for presenting.
 - [x] Comments pinned to canvas positions.
-- [ ] Reactions/quick markers, for example approve/question.
+- [x] Reactions/quick markers, for example approve/question.
 
 ## 7. Diagrams And Team Work
 

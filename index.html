@@ -28,6 +28,14 @@
 <svg id="whiteboardSvg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
 <div class="draw-handler"></div>
 <div class="laser-layer" aria-hidden="true"></div>
+<div class="reaction-picker" id="reactionPicker" hidden>
+  <button data-emoji="👍">👍</button>
+  <button data-emoji="❓">❓</button>
+  <button data-emoji="✅">✅</button>
+  <button data-emoji="⭐">⭐</button>
+  <button data-emoji="🔥">🔥</button>
+  <button data-emoji="❤️">❤️</button>
+</div>
 <button class="minimap" type="button" aria-label="Minimap"><svg viewBox="0 0 240 160"></svg></button>
 <input id="imageImport" type="file" accept="image/*" hidden>
 
@@ -235,6 +243,7 @@
       <button class="tool-menu-trigger" title="Collaboration tools" aria-label="Collaboration tools"><svg viewBox="0 0 24 24" fill="none"><path d="M5 19L11 5L13 13L19 15L5 19Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/></svg></button>
       <div class="tool-popover"><div class="tool-group">
         <button class="tool" id="laser" title="Laser pointer" aria-label="Laser pointer"><svg viewBox="0 0 24 24" fill="none"><path d="M5 19L11 5L13 13L19 15L5 19Z" stroke="var(--icon-color)" stroke-width="2" stroke-linejoin="round"/><path d="M15 5L19 3M18 9H22M13 2V6" stroke="var(--icon-color)" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button class="tool" id="reaction" title="Reaction" aria-label="Reaction">😊</button>
       </div></div>
     </div>
 

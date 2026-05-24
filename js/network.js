@@ -348,6 +348,18 @@ export function sendObjectLockState(objectIds = [], force = false) {
     });
 }
 
+export function sendReaction(emoji, point) {
+    send({
+        type: 'reaction',
+        emoji,
+        x: point.x,
+        y: point.y,
+        name: app.localUser.name,
+        color: app.localUser.color,
+        initials: app.localUser.initials,
+    });
+}
+
 export function sendLaserPosition(point, active = true) {
     const now = performance.now();
 
@@ -626,6 +638,29 @@ export function initNetwork({render, onPeersChange}) {
             collaborator.laser = message.active ? {x: message.x, y: message.y, expiresAt: Date.now() + 1200} : null;
             app.collaborators.set(message.clientId, collaborator);
             window.updateRemoteCursors?.();
+            window.whiteboardUpdateRemoteLasers?.();
+            return;
+        }
+
+        if (message.type === 'reaction') {
+            const fallbackAvatar = getUserAvatar(message.name || 'Guest', `${message.name || 'Guest'}:${message.clientId}`);
+            const collaborator = app.collaborators.get(message.clientId) || {
+                id: message.clientId,
+                name: message.name || 'Guest',
+                color: message.color || fallbackAvatar.color,
+                initials: message.initials || fallbackAvatar.initials,
+            };
+            if (!collaborator.reactions) {
+                collaborator.reactions = [];
+            }
+            collaborator.reactions.push({
+                emoji: message.emoji,
+                x: message.x,
+                y: message.y,
+                id: crypto.randomUUID(),
+                expiresAt: Date.now() + 4000,
+            });
+            app.collaborators.set(message.clientId, collaborator);
             window.whiteboardUpdateRemoteLasers?.();
             return;
         }

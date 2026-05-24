@@ -50,7 +50,7 @@ import {
 } from './drawing.js';
 import {getObjectName} from './activity.js';
 import {app, setMousePosition} from './main.js';
-import {broadcastActivity, broadcastBoardState, sendCursorPosition, sendLaserPosition, sendObjectLockState, sendSelectionState} from './network.js';
+import {broadcastActivity, broadcastBoardState, sendCursorPosition, sendLaserPosition, sendObjectLockState, sendSelectionState, sendReaction} from './network.js';
 import {activateMovingToolbar, deactivateMovingToolbar, hideToolbar, moveToolbar, showToolbar} from './toolbar.js';
 import {clampZoomOffset, getCanvasPoint, getCanvasTransform, hexToRgba} from './utils.js';
 
@@ -245,6 +245,8 @@ function setActiveTool(button) {
     app.selectedObjectId = null;
     app.selectedObjectIds = [];
     app.lassoBounds = null;
+    app.reactionEmoji = null;
+    hideReactionPicker();
     render();
 }
 
@@ -1218,6 +1220,27 @@ function updateRemoteCursors() {
     }
 }
 
+const REACTION_EMOJIS = ['👍', '❓', '✅', '⭐', '🔥', '❤️'];
+
+function showReactionPicker(screenX, screenY, boardPoint) {
+    let picker = document.getElementById('reactionPicker');
+    if (!picker) {
+        return;
+    }
+    picker.style.left = `${Math.min(screenX, window.innerWidth - 220)}px`;
+    picker.style.top = `${Math.max(screenY - 60, 8)}px`;
+    picker.hidden = false;
+    picker.dataset.boardX = boardPoint.x;
+    picker.dataset.boardY = boardPoint.y;
+}
+
+function hideReactionPicker() {
+    const picker = document.getElementById('reactionPicker');
+    if (picker) {
+        picker.hidden = true;
+    }
+}
+
 function updateRemoteLasers() {
     if (!laserLayer) {
         return;
@@ -1225,24 +1248,41 @@ function updateRemoteLasers() {
 
     laserLayer.replaceChildren();
     app.collaborators.forEach(user => {
-        if (!user.laser) {
-            return;
+        if (user.laser) {
+            if (user.laser.expiresAt && user.laser.expiresAt < Date.now()) {
+                user.laser = null;
+                updateRemoteCursors();
+            } else {
+                const dot = document.createElement('div');
+                dot.className = 'laser-dot';
+                dot.style.setProperty('--laser-color', user.color);
+                dot.style.left = `${(user.laser.x + app.zoom.offsetX) * app.zoom.scale}px`;
+                dot.style.top = `${(user.laser.y + app.zoom.offsetY) * app.zoom.scale}px`;
+                dot.innerHTML = `<span>${user.name}</span>`;
+                laserLayer.appendChild(dot);
+            }
         }
 
-        if (user.laser.expiresAt && user.laser.expiresAt < Date.now()) {
-            user.laser = null;
-            updateRemoteCursors();
-            return;
+        if (user.reactions?.length) {
+            const now = Date.now();
+            user.reactions = user.reactions.filter(r => r.expiresAt > now);
+            user.reactions.forEach(reaction => {
+                const el = document.createElement('div');
+                el.className = 'reaction-float';
+                el.style.setProperty('--reaction-color', user.color);
+                el.style.left = `${(reaction.x + app.zoom.offsetX) * app.zoom.scale}px`;
+                el.style.top = `${(reaction.y + app.zoom.offsetY) * app.zoom.scale}px`;
+                const remaining = reaction.expiresAt - now;
+                el.style.setProperty('--reaction-progress', `${remaining / 4000}`);
+                el.innerHTML = `<span class="reaction-emoji">${reaction.emoji}</span><span class="reaction-avatar">${user.initials}</span>`;
+                laserLayer.appendChild(el);
+            });
         }
-
-        const dot = document.createElement('div');
-        dot.className = 'laser-dot';
-        dot.style.setProperty('--laser-color', user.color);
-        dot.style.left = `${(user.laser.x + app.zoom.offsetX) * app.zoom.scale}px`;
-        dot.style.top = `${(user.laser.y + app.zoom.offsetY) * app.zoom.scale}px`;
-        dot.innerHTML = `<span>${user.name}</span>`;
-        laserLayer.appendChild(dot);
     });
+
+    if ([...app.collaborators.values()].some(u => u.reactions?.length)) {
+        setTimeout(() => window.whiteboardUpdateRemoteLasers?.(), 100);
+    }
 }
 
 function updateMinimap() {
@@ -1534,6 +1574,17 @@ export function initEvents() {
     updateToolbarState();
     renderPropertyPanel();
     window.setInterval(updateRemoteLasers, 500);
+
+    document.getElementById('reactionPicker')?.addEventListener('click', e => {
+        const btn = e.target.closest('[data-emoji]');
+        if (!btn) return;
+        const picker = document.getElementById('reactionPicker');
+        const boardPoint = {x: Number(picker.dataset.boardX), y: Number(picker.dataset.boardY)};
+        app.reactionEmoji = btn.dataset.emoji;
+        sendReaction(app.reactionEmoji, boardPoint);
+        app.reactionEmoji = null;
+        hideReactionPicker();
+    });
     const boardName = localStorage.getItem(`whiteboard:boardName:${app.roomId}`) || `Whiteboard / ${app.roomId.slice(0, 8)}`;
     document.querySelector('.board-title span:last-child').textContent = boardName;
     shareButton.addEventListener('click', copyShareLink);
@@ -2109,6 +2160,17 @@ export function initEvents() {
 
         if (app.currentTool === 'laser') {
             sendLaserPosition(point, true);
+            return;
+        }
+
+        if (app.currentTool === 'reaction') {
+            if (app.reactionEmoji) {
+                sendReaction(app.reactionEmoji, point);
+                app.reactionEmoji = null;
+                hideReactionPicker();
+            } else {
+                showReactionPicker(app.mouse.x, app.mouse.y, point);
+            }
             return;
         }
 
