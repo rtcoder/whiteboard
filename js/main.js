@@ -50,6 +50,7 @@ export const app = {
     },
     collaborators: new Map(),
     objectLocks: new Map(),
+    connectionState: 'connecting',
     activityLog: [],
     mouse: {
         x: 0,

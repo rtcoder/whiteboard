@@ -776,6 +776,63 @@ function createLockedBadge(bounds) {
     return group;
 }
 
+function createRemoteLockBadge(bounds, lock) {
+    const group = createSvgElement('g');
+    const user = lock.user || {};
+    const color = user.color || '#64748b';
+    const initials = user.initials || (user.name || 'User').slice(0, 2).toUpperCase();
+    const x = bounds.x + bounds.width + 12;
+    const y = bounds.y + bounds.height + 16;
+    const text = `Locked by ${user.name || 'user'}`;
+
+    group.appendChild(createSvgElement('rect', {
+        x,
+        y: y - 13,
+        width: Math.max(96, text.length * 6.5 + 36),
+        height: 26,
+        rx: 13,
+        ry: 13,
+        fill: '#ffffff',
+        stroke: color,
+        'stroke-width': 1.5,
+        'vector-effect': 'non-scaling-stroke',
+    }));
+    group.appendChild(createSvgElement('circle', {
+        cx: x + 14,
+        cy: y,
+        r: 9,
+        fill: color,
+        stroke: '#ffffff',
+        'stroke-width': 2,
+        'vector-effect': 'non-scaling-stroke',
+    }));
+    const initialsText = createSvgElement('text', {
+        x: x + 14,
+        y: y + 1,
+        fill: '#ffffff',
+        'font-size': 8,
+        'font-family': 'Inter, system-ui, sans-serif',
+        'font-weight': 850,
+        'text-anchor': 'middle',
+        'dominant-baseline': 'middle',
+    });
+    initialsText.textContent = initials;
+    group.appendChild(initialsText);
+    const label = createSvgElement('text', {
+        x: x + 30,
+        y: y + 1,
+        fill: '#334155',
+        'font-size': 11,
+        'font-family': 'Inter, system-ui, sans-serif',
+        'font-weight': 800,
+        'dominant-baseline': 'middle',
+    });
+    label.textContent = text;
+    group.appendChild(label);
+
+    return group;
+}
+
 function createResizeHandle(x, y, handle) {
     const size = Math.max(12, 12 / app.zoom.scale);
 
@@ -1283,6 +1340,16 @@ function renderSvg(showSelection = true) {
 
         if (bounds) {
             app.svg.appendChild(createLockedBadge(bounds));
+        }
+    });
+    app.objects.forEach(object => {
+        const lock = app.objectLocks.get(object.id);
+        const bounds = lock && lock.clientId !== app.clientId && (!lock.expiresAt || lock.expiresAt > Date.now())
+            ? getBounds(object)
+            : null;
+
+        if (bounds) {
+            app.svg.appendChild(createRemoteLockBadge(bounds, lock));
         }
     });
     app.svg.appendChild(createSvgPresenceBadges());

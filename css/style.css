@@ -339,6 +339,55 @@ svg, img {
     gap: 10px;
 }
 
+.connection-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 28px;
+    padding: 0 9px;
+    border: 1px solid rgba(15, 23, 42, 0.10);
+    border-radius: 999px;
+    background: rgba(248, 250, 252, 0.9);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.connection-status::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #94a3b8;
+}
+
+.connection-status[data-state="connected"] {
+    color: #166534;
+}
+
+.connection-status[data-state="connected"]::before {
+    background: #22c55e;
+}
+
+.connection-status[data-state="reconnecting"],
+.connection-status[data-state="connecting"] {
+    color: #92400e;
+}
+
+.connection-status[data-state="reconnecting"]::before,
+.connection-status[data-state="connecting"]::before {
+    background: #f59e0b;
+}
+
+.connection-status[data-state="offline"] {
+    color: #991b1b;
+}
+
+.connection-status[data-state="offline"]::before {
+    background: #ef4444;
+}
+
 .presence {
     padding-left: 8px;
 }
@@ -836,8 +885,13 @@ body.drag-import::after {
     }
 
     .activity-toggle,
-    .share-button {
+    .share-button,
+    .connection-status {
         padding: 0 10px;
+    }
+
+    .connection-status {
+        max-width: 104px;
     }
 
     .minimap {

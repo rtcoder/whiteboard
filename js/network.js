@@ -14,11 +14,15 @@ let lastLaserSentAt = 0;
 let lastObjectLockSentAt = 0;
 let localObjectCache = new Map();
 let localObjectOrder = [];
+let reconnectTimer = null;
+let reconnectAttempts = 0;
+let manualClose = false;
 const DEBUG_NETWORK = true;
 const DEBUG_CURSOR = false;
 const CURSOR_SEND_INTERVAL = 50;
 const LASER_SEND_INTERVAL = 40;
 const OBJECT_LOCK_SEND_INTERVAL = 1200;
+const MAX_RECONNECT_DELAY = 8000;
 
 function logNetwork(...args) {
     if (DEBUG_NETWORK) {
@@ -178,6 +182,23 @@ function send(message) {
         });
     }
     socket.send(payload);
+}
+
+function setConnectionStatus(state) {
+    app.connectionState = state;
+    const status = document.querySelector('.connection-status');
+
+    if (!status) {
+        return;
+    }
+
+    status.dataset.state = state;
+    status.textContent = {
+        connecting: 'Connecting',
+        connected: 'Connected',
+        reconnecting: 'Reconnecting',
+        offline: 'Offline',
+    }[state] || state;
 }
 
 export function getClientId() {
@@ -341,40 +362,58 @@ export function initNetwork({render, onPeersChange}) {
         return;
     }
 
-    const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-    const params = new URLSearchParams({
-        room: app.roomId,
-        client: clientId,
-        name: app.localUser.name,
-        color: app.localUser.color,
-        initials: app.localUser.initials,
-    });
-    socket = new WebSocket(`${protocol}://${location.host}/ws?${params.toString()}`);
-    logNetwork('connecting', {
-        roomId: app.roomId,
-        clientId,
-    });
-
-    socket.addEventListener('open', () => {
-        logNetwork('open', {
+    const connect = () => {
+        window.clearTimeout(reconnectTimer);
+        setConnectionStatus(reconnectAttempts ? 'reconnecting' : 'connecting');
+        const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+        const params = new URLSearchParams({
+            room: app.roomId,
+            client: clientId,
+            name: app.localUser.name,
+            color: app.localUser.color,
+            initials: app.localUser.initials,
+        });
+        socket = new WebSocket(`${protocol}://${location.host}/ws?${params.toString()}`);
+        logNetwork('connecting', {
             roomId: app.roomId,
             clientId,
+            reconnectAttempts,
         });
-    });
 
-    socket.addEventListener('close', event => {
-        logNetwork('close', {
-            code: event.code,
-            reason: event.reason,
-            wasClean: event.wasClean,
+        socket.addEventListener('open', () => {
+            reconnectAttempts = 0;
+            setConnectionStatus('connected');
+            logNetwork('open', {
+                roomId: app.roomId,
+                clientId,
+            });
+            sendSelectionState(app.selectedObjectIds);
         });
-    });
 
-    socket.addEventListener('error', event => {
-        logNetwork('error', event);
-    });
+        socket.addEventListener('close', event => {
+            logNetwork('close', {
+                code: event.code,
+                reason: event.reason,
+                wasClean: event.wasClean,
+            });
 
-    socket.addEventListener('message', event => {
+            if (manualClose) {
+                setConnectionStatus('offline');
+                return;
+            }
+
+            reconnectAttempts += 1;
+            setConnectionStatus(reconnectAttempts > 1 ? 'offline' : 'reconnecting');
+            const delay = Math.min(MAX_RECONNECT_DELAY, 600 * reconnectAttempts);
+            reconnectTimer = window.setTimeout(connect, delay);
+        });
+
+        socket.addEventListener('error', event => {
+            logNetwork('error', event);
+            setConnectionStatus('offline');
+        });
+
+        socket.addEventListener('message', event => {
         let message;
 
         try {
@@ -567,7 +606,20 @@ export function initNetwork({render, onPeersChange}) {
 
         if (message.type === 'peer-left') {
             app.collaborators.delete(message.clientId);
+            for (const [objectId, lock] of app.objectLocks) {
+                if (lock.clientId === message.clientId) {
+                    app.objectLocks.delete(objectId);
+                }
+            }
+            renderBoard();
+            window.whiteboardUpdateSelectionUi?.();
             updatePeers();
         }
+        });
+    };
+
+    window.addEventListener('beforeunload', () => {
+        manualClose = true;
     });
+    connect();
 }

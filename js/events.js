@@ -118,6 +118,17 @@ function getPeerEditingSelectedObjects(objects = getSelectedObjects()) {
     return [...selectedIds].some(id => busyIds.has(id));
 }
 
+function getLockOwnerForObjects(objects) {
+    const objectIds = new Set(objects.map(object => object.id));
+    const lock = [...app.objectLocks.values()].find(item => (
+        objectIds.has(item.objectId) &&
+        item.clientId !== app.clientId &&
+        (!item.expiresAt || item.expiresAt > Date.now())
+    ));
+
+    return lock?.user || null;
+}
+
 function canEditObjects(objects, message = 'Someone else is editing this object') {
     if (!objects.length) {
         return false;
@@ -421,9 +432,13 @@ function renderPropertyPanel() {
     document.body.classList.add('properties-open');
 
     if (propertiesSummary) {
-        propertiesSummary.textContent = selectedObjects.length === 1
+        const lockOwner = getLockOwnerForObjects(selectedObjects);
+        const selectionSummary = selectedObjects.length === 1
             ? getObjectName(firstObject)
             : `${selectedObjects.length} objects selected`;
+        propertiesSummary.textContent = lockOwner
+            ? `${selectionSummary} · Locked by ${lockOwner.name || 'user'}`
+            : selectionSummary;
     }
 
     if (propertyStroke) {
