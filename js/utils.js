@@ -34,8 +34,8 @@ export function getCanvasPoint(x, y) {
 }
 
 export function clampZoomOffset() {
-    const maxOffsetX = Math.max(0, app.canvas.width - window.innerWidth / app.zoom.scale);
-    const maxOffsetY = Math.max(0, app.canvas.height - window.innerHeight / app.zoom.scale);
+    const maxOffsetX = Math.max(0, app.board.width - window.innerWidth / app.zoom.scale);
+    const maxOffsetY = Math.max(0, app.board.height - window.innerHeight / app.zoom.scale);
 
     app.zoom.offsetX = Math.min(0, Math.max(-maxOffsetX, app.zoom.offsetX));
     app.zoom.offsetY = Math.min(0, Math.max(-maxOffsetY, app.zoom.offsetY));

@@ -1722,59 +1722,6 @@ function renderSvg(showSelection = true) {
 }
 
 export function render(showSelection = true) {
-    clearCanvas();
-    const deferredObjects = new Set();
-
-    for (const object of app.objects) {
-        if (object.type === 'bitmap' && object.linkedObjectIds?.length) {
-            app.ctx.putImageData(object.imageData, object.x, object.y);
-            object.linkedObjectIds.forEach(id => deferredObjects.add(id));
-        }
-    }
-
-    for (const object of app.objects) {
-        if (deferredObjects.has(object.id)) {
-            continue;
-        }
-
-        if (object.type === 'bitmap') {
-            app.ctx.putImageData(object.imageData, object.x, object.y);
-        } else if (object.type === 'image' || object.type === 'connector') {
-            // These are rendered in SVG; canvas export keeps the current raster-safe layer.
-        } else if (object.type === 'path') {
-            drawPath(object);
-        } else if (SHAPE_TYPES.includes(object.type)) {
-            drawShape(object);
-        } else if (['text', 'sticky', 'callout', 'list', 'label'].includes(object.type)) {
-            drawTextObject(object);
-        } else if (object.type === 'frame') {
-            drawFrameObject(object);
-        } else if (object.type === 'comment') {
-            drawCommentObject(object);
-        }
-    }
-
-    for (const object of app.objects) {
-        if (deferredObjects.has(object.id)) {
-            drawPath(object);
-        }
-    }
-
-    if (app.draftObject) {
-        if (app.draftObject.type === 'path') {
-            drawPath(app.draftObject);
-        } else if (SHAPE_TYPES.includes(app.draftObject.type)) {
-            drawShape(app.draftObject);
-        }
-    }
-
-    const selectedObjects = showSelection ? getSelectedObjects() : [];
-    if (selectedObjects.length > 1) {
-        drawSelectionBounds(getObjectsBounds(selectedObjects));
-    } else if (selectedObjects.length === 1) {
-        drawSelection(selectedObjects[0]);
-    }
-
     renderSvg(showSelection);
     window.whiteboardUpdateMinimap?.();
     window.whiteboardUpdateRemoteLasers?.();
@@ -2199,8 +2146,8 @@ function getExportBounds() {
         return {
             x: 0,
             y: 0,
-            width: Math.min(app.canvas.width, 1600),
-            height: Math.min(app.canvas.height, 1000),
+            width: Math.min(app.board.width, 1600),
+            height: Math.min(app.board.height, 1000),
         };
     }
 
@@ -2232,39 +2179,25 @@ async function createExportCanvas() {
     render(false);
     const bounds = getExportBounds();
     const canvas = document.createElement('canvas');
-    canvas.width = Math.min(bounds.width, app.canvas.width - bounds.x);
-    canvas.height = Math.min(bounds.height, app.canvas.height - bounds.y);
+    canvas.width = Math.min(bounds.width, app.board.width - bounds.x);
+    canvas.height = Math.min(bounds.height, app.board.height - bounds.y);
     const context = canvas.getContext('2d');
     context.fillStyle = 'white';
     context.fillRect(0, 0, canvas.width, canvas.height);
 
-    try {
-        const svgText = new XMLSerializer().serializeToString(app.svg);
-        const image = await imageFromSvg(svgText);
-        context.drawImage(
-            image,
-            bounds.x,
-            bounds.y,
-            canvas.width,
-            canvas.height,
-            0,
-            0,
-            canvas.width,
-            canvas.height,
-        );
-    } catch {
-        context.drawImage(
-            app.canvas,
-            bounds.x,
-            bounds.y,
-            canvas.width,
-            canvas.height,
-            0,
-            0,
-            canvas.width,
-            canvas.height,
-        );
-    }
+    const svgText = new XMLSerializer().serializeToString(app.svg);
+    const image = await imageFromSvg(svgText);
+    context.drawImage(
+        image,
+        bounds.x,
+        bounds.y,
+        canvas.width,
+        canvas.height,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+    );
 
     render();
     return canvas;
@@ -2310,9 +2243,9 @@ function getExportSvgText() {
     const bounds = getExportBounds();
     const clone = app.svg.cloneNode(true);
     clone.setAttribute('xmlns', SVG_NS);
-    clone.setAttribute('width', Math.min(bounds.width, app.canvas.width - bounds.x));
-    clone.setAttribute('height', Math.min(bounds.height, app.canvas.height - bounds.y));
-    clone.setAttribute('viewBox', `${bounds.x} ${bounds.y} ${Math.min(bounds.width, app.canvas.width - bounds.x)} ${Math.min(bounds.height, app.canvas.height - bounds.y)}`);
+    clone.setAttribute('width', Math.min(bounds.width, app.board.width - bounds.x));
+    clone.setAttribute('height', Math.min(bounds.height, app.board.height - bounds.y));
+    clone.setAttribute('viewBox', `${bounds.x} ${bounds.y} ${Math.min(bounds.width, app.board.width - bounds.x)} ${Math.min(bounds.height, app.board.height - bounds.y)}`);
     clone.style.background = '#fff';
     const svgText = new XMLSerializer().serializeToString(clone);
     render();

@@ -10,9 +10,11 @@ localStorage.setItem('whiteboard:clientId', storedClientId);
 const storedUserAvatar = getUserAvatar(storedUserName, `${storedUserName}:${storedClientId}`);
 
 export const app = {
-    canvas: null,
-    ctx: null,
     svg: null,
+    board: {
+        width: window.innerWidth * 5,
+        height: window.innerHeight * 5,
+    },
     cursor: null,
     allTools: [],
     currentTool: 'pen',
@@ -65,8 +67,6 @@ export const app = {
         offsetY: 0,
     },
 };
-app.canvas = document.querySelector('#whiteboard');
-app.ctx = app.canvas.getContext('2d');
 app.svg = document.querySelector('#whiteboardSvg');
 app.allTools = document.querySelectorAll('.tool');
 window.whiteboardApp = app;
@@ -79,16 +79,16 @@ export function setMousePosition(e) {
 }
 
 
-function resizeCanvas() {
-    app.canvas.width = window.innerWidth * 5;
-    app.canvas.height = window.innerHeight * 5;
-    app.svg.setAttribute('width', app.canvas.width);
-    app.svg.setAttribute('height', app.canvas.height);
-    app.svg.setAttribute('viewBox', `0 0 ${app.canvas.width} ${app.canvas.height}`);
+function resizeBoard() {
+    app.board.width = window.innerWidth * 5;
+    app.board.height = window.innerHeight * 5;
+    app.svg.setAttribute('width', app.board.width);
+    app.svg.setAttribute('height', app.board.height);
+    app.svg.setAttribute('viewBox', `0 0 ${app.board.width} ${app.board.height}`);
     render();
 }
 
-resizeCanvas();
+resizeBoard();
 
 function getRoomIdFromPath() {
     const path = window.location.pathname.replace(/^\/+|\/+$/g, '');

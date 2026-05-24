@@ -37,7 +37,6 @@ body.lobby-active {
         #eef4ff;
 }
 
-body.lobby-active canvas,
 body.lobby-active #whiteboardSvg,
 body.lobby-active .draw-handler,
 body.lobby-active .workspace-bar,
@@ -261,7 +260,6 @@ svg, img {
     stroke-width: 1.5;
 }
 
-#whiteboard,
 #whiteboardSvg {
     cursor: none;
     position: fixed;
@@ -269,16 +267,11 @@ svg, img {
     transform-origin:top left;
 }
 
-#whiteboard {
-    opacity: 0;
-    pointer-events: none;
-}
-
 #whiteboardSvg {
     overflow: visible;
     box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
     background: #fff;
-    pointer-events: none;
+    pointer-events: auto;
 }
 
 #whiteboardSvg text {

@@ -380,7 +380,6 @@ function updateActiveToolMenu(button) {
 
 function applyCanvasTransform() {
     clampZoomOffset();
-    app.canvas.style.transform = getCanvasTransform();
     app.svg.style.transform = getCanvasTransform();
     updateRemoteCursors();
     updateRemoteLasers();
@@ -1213,7 +1212,6 @@ function updateRemoteCursors() {
             app.zoom.offsetX = window.innerWidth / 2 / app.zoom.scale - user.x;
             app.zoom.offsetY = window.innerHeight / 2 / app.zoom.scale - user.y;
             clampZoomOffset();
-            app.canvas.style.transform = getCanvasTransform();
             app.svg.style.transform = getCanvasTransform();
         }
     });
@@ -1260,8 +1258,8 @@ function updateMinimap() {
         return;
     }
 
-    const scaleX = 240 / app.canvas.width;
-    const scaleY = 160 / app.canvas.height;
+    const scaleX = 240 / app.board.width;
+    const scaleY = 160 / app.board.height;
     const objectRects = app.objects
         .map(object => getObjectBounds(object))
         .filter(Boolean)
@@ -1282,8 +1280,8 @@ function moveViewportFromMinimap(event) {
     }
 
     const rect = minimap.getBoundingClientRect();
-    const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * app.canvas.width;
-    const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) * app.canvas.height;
+    const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * app.board.width;
+    const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) * app.board.height;
     app.zoom.offsetX = window.innerWidth / 2 / app.zoom.scale - x;
     app.zoom.offsetY = window.innerHeight / 2 / app.zoom.scale - y;
     applyCanvasTransform();
@@ -1697,7 +1695,7 @@ export function initEvents() {
         app.drag.minimap = false;
     });
     fitBoardButton.addEventListener('click', () => {
-        fitBoundsToScreen(getObjectsBounds() || {x: 0, y: 0, width: app.canvas.width, height: app.canvas.height});
+        fitBoundsToScreen(getObjectsBounds() || {x: 0, y: 0, width: app.board.width, height: app.board.height});
     });
     zoomSelectionButton.addEventListener('click', () => {
         fitBoundsToScreen(getSelectedObjectsBounds());
