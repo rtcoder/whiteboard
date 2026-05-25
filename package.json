@@ -2,6 +2,6 @@
     "scripts": {
         "start": "node server.js",
         "test": "node scripts/smoke-tests.mjs && node scripts/ws-integration-tests.mjs",
-        "test:e2e": "node scripts/browser-qa-smoke.mjs"
+        "test:e2e": "node scripts/browser-qa-smoke.mjs && node scripts/browser-e2e-tests.mjs"
     }
 }

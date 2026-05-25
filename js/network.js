@@ -332,6 +332,22 @@ function syncLocalObjectCache(objects) {
     localObjectOrder = objects.map(object => object.id);
 }
 
+function getOperationBaseState() {
+    const pendingObjects = [...pendingBoardStates.values()].at(-1);
+
+    if (!pendingObjects) {
+        return {
+            cache: localObjectCache,
+            order: localObjectOrder,
+        };
+    }
+
+    return {
+        cache: new Map(pendingObjects.map(object => [object.id, JSON.stringify(object)])),
+        order: pendingObjects.map(object => object.id),
+    };
+}
+
 function markBoardStatePending(revision, objects) {
     pendingBoardStates.set(revision, objects);
     clearTimeout(syncedStatusTimer);
@@ -362,15 +378,16 @@ function acknowledgeBoardState(clientRevision) {
 }
 
 function getBoardOperation(objects) {
+    const baseState = getOperationBaseState();
     const nextCache = new Map(objects.map(object => [object.id, JSON.stringify(object)]));
-    const upsert = objects.filter(object => nextCache.get(object.id) !== localObjectCache.get(object.id));
-    const deleteIds = [...localObjectCache.keys()].filter(id => !nextCache.has(id));
+    const upsert = objects.filter(object => nextCache.get(object.id) !== baseState.cache.get(object.id));
+    const deleteIds = [...baseState.cache.keys()].filter(id => !nextCache.has(id));
     const orderIds = objects.map(object => object.id);
-    const orderChanged = orderIds.length !== localObjectOrder.length ||
-        orderIds.some((id, index) => id !== localObjectOrder[index]);
+    const orderChanged = orderIds.length !== baseState.order.length ||
+        orderIds.some((id, index) => id !== baseState.order[index]);
 
-    const created = upsert.filter(object => !localObjectCache.has(object.id));
-    const updated = upsert.filter(object => localObjectCache.has(object.id));
+    const created = upsert.filter(object => !baseState.cache.has(object.id));
+    const updated = upsert.filter(object => baseState.cache.has(object.id));
 
     return {
         kind: deleteIds.length

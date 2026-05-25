@@ -2,7 +2,7 @@
 
 Use this checklist for manual browser verification after changes that touch collaboration, board editing, export/import, or responsive UI.
 
-`npm run test:e2e` runs static browser QA smoke checks and prints the most important manual browser scenarios. It is not a replacement for a real two-window browser pass.
+`npm run test:e2e` runs static browser QA smoke checks and a real headless Chrome E2E pass for the most important two-client flows. It covers open-room join, closed-room accept/deny, drawing sync, fill sync, move/delete/undo sync, laser cursor behavior, and mobile toolbar fit. Use this checklist for release-level visual review and exploratory coverage that automation does not fully judge.
 
 ## Room Access
 

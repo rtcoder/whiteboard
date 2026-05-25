@@ -73,7 +73,8 @@ for (const snippet of requiredNetworkFlow) {
 
 console.log('Browser QA smoke checks passed');
 console.log('');
-console.log('Manual browser QA checklist:');
+console.log('Automated browser E2E continues with headless Chrome.');
+console.log('Manual browser QA checklist for release passes:');
 console.log('- Create an open room and join it by link and by meeting code.');
 console.log('- Create a closed room, request access from a second window, accept, and verify the guest joins.');
 console.log('- Repeat closed room flow with Deny and verify the guest stays on the join screen.');
