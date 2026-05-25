@@ -47,12 +47,18 @@ function getRoomAccessTokenKey() {
 
 function renderRoomAccessControls() {
     const hostBadge = document.querySelector('.host-badge');
+    const hostOfflineBadge = document.querySelector('.host-offline-badge');
     const accessControl = document.querySelector('.room-access-control');
     const accessSelect = document.querySelector('.room-access-select');
     const requestsToggle = document.querySelector('.join-requests-toggle');
 
     if (hostBadge) {
         hostBadge.hidden = !app.isHost;
+        hostBadge.textContent = app.roomHost?.id === app.clientId ? 'Host' : 'Temporary host';
+    }
+
+    if (hostOfflineBadge) {
+        hostOfflineBadge.hidden = Boolean(app.activeHost);
     }
 
     if (accessControl) {
@@ -66,6 +72,15 @@ function renderRoomAccessControls() {
     if (accessSelect) {
         accessSelect.value = app.roomAccessMode || 'open';
     }
+}
+
+function applyHostState(message = {}) {
+    app.roomHost = message.host || app.roomHost;
+    app.activeHost = message.activeHost || null;
+    app.hostOnline = Boolean(message.hostOnline);
+    app.roomAccessMode = message.accessMode || app.roomAccessMode;
+    app.isHost = app.activeHost?.id === app.clientId;
+    renderRoomAccessControls();
 }
 
 function renderPendingJoinRequests() {
@@ -209,6 +224,33 @@ async function updateRoomAccessMode(accessMode) {
         renderRoomAccessControls();
         window.whiteboardShowStatus?.('Unable to update room access');
     }
+}
+
+export async function transferHost(targetClientId) {
+    const response = await fetch(`/api/rooms/${encodeURIComponent(app.roomId)}/host-transfer`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            hostId: app.clientId,
+            targetClientId,
+            accessToken: localStorage.getItem(getRoomAccessTokenKey()) || '',
+        }),
+    });
+
+    if (!response.ok) {
+        throw new Error('Unable to transfer host permissions');
+    }
+
+    const metadata = await response.json();
+    applyHostState(metadata);
+    return metadata;
+}
+
+export function closeRoomConnection() {
+    manualClose = true;
+    socket?.close();
 }
 
 function initRoomAccessControls() {
@@ -719,10 +761,7 @@ export function initNetwork({render, onPeersChange}) {
             clientId = message.clientId;
             app.clientId = clientId;
             app.roomName = message.roomName || app.roomName;
-            app.roomHost = message.host || app.roomHost;
-            app.roomAccessMode = message.accessMode || app.roomAccessMode;
-            app.isHost = app.roomHost?.id === app.clientId || app.isHost;
-            renderRoomAccessControls();
+            applyHostState(message);
             refreshLocalUserAvatar();
             currentRevision = message.revision || 0;
             pendingBoardStates = new Map();
@@ -932,6 +971,16 @@ export function initNetwork({render, onPeersChange}) {
             app.roomAccessMode = message.accessMode || app.roomAccessMode;
             renderRoomAccessControls();
             window.whiteboardShowStatus?.(`Room is now ${app.roomAccessMode}`);
+            return;
+        }
+
+        if (message.type === NetworkMessageType.RoomHostUpdated) {
+            applyHostState(message);
+            if (!app.activeHost) {
+                window.whiteboardShowStatus?.('No host is currently online');
+            } else if (app.isHost) {
+                window.whiteboardShowStatus?.('You are now the host');
+            }
             return;
         }
 

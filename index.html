@@ -76,13 +76,30 @@
     <button class="join-requests-toggle" type="button" hidden aria-expanded="false" aria-controls="joinRequestsPanel">
       Requests <span class="join-requests-count">0</span>
     </button>
+    <span class="host-offline-badge" hidden>No host online</span>
     <span class="connection-status" data-state="connecting">Connecting</span>
     <div class="presence">
     </div>
     <button class="activity-toggle" type="button" aria-expanded="false" aria-controls="activityPanel">History</button>
     <button class="share-button" type="button">Share</button>
+    <button class="leave-room-button" type="button">Leave</button>
   </div>
 </header>
+
+<section class="leave-room-modal" id="leaveRoomModal" hidden aria-label="Leave room">
+  <div class="leave-room-card">
+    <strong class="leave-room-title">Leave room</strong>
+    <p class="leave-room-message"></p>
+    <div class="leave-room-transfer" hidden>
+      <span>Choose a temporary host</span>
+      <div class="leave-room-users"></div>
+    </div>
+    <div class="leave-room-actions">
+      <button class="leave-cancel" type="button">Cancel</button>
+      <button class="leave-without-transfer" type="button">Leave anyway</button>
+    </div>
+  </div>
+</section>
 
 <aside class="join-requests-panel" id="joinRequestsPanel" aria-label="Join requests" hidden>
   <div class="activity-header">

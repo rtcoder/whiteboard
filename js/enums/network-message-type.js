@@ -15,6 +15,7 @@ export const NetworkMessageType = Object.freeze({
     PeerJoined: 'peer-joined',
     PeerLeft: 'peer-left',
     Reaction: 'reaction',
+    RoomHostUpdated: 'room-host-updated',
     RoomAccessUpdated: 'room-access-updated',
     Selection: 'selection',
 });

@@ -98,11 +98,41 @@ function canClientJoinRoom(room, clientId, accessToken = '') {
         || (Boolean(accessToken) && room.accessTokens?.get(clientId) === accessToken);
 }
 
+function getClientById(room, clientId) {
+    return [...room.clients || []].find(client => client.clientId === clientId) || null;
+}
+
+function getActiveHost(room) {
+    const owner = room.host?.id ? getClientById(room, room.host.id) : null;
+
+    if (owner) {
+        return owner.user;
+    }
+
+    const delegate = room.hostDelegate?.id ? getClientById(room, room.hostDelegate.id) : null;
+    return delegate?.user || null;
+}
+
+function getHostMetadata(room) {
+    const activeHost = getActiveHost(room);
+
+    return {
+        host: room.host || null,
+        activeHost,
+        hostOnline: Boolean(room.host?.id && getClientById(room, room.host.id)),
+        hasActiveHost: Boolean(activeHost),
+    };
+}
+
+function canClientActAsHost(room, clientId) {
+    return getActiveHost(room)?.id === clientId;
+}
+
 function getRoomMetadata(room, clientId = '', accessToken = '') {
     return {
         id: room.id,
         name: room.name || `Whiteboard / ${room.id.slice(0, 8)}`,
-        host: room.host || null,
+        ...getHostMetadata(room),
         accessMode: room.accessMode || 'open',
         canJoin: canClientJoinRoom(room, clientId, accessToken),
         revision: room.revision || 0,
@@ -231,7 +261,7 @@ const server = http.createServer(async (req, res) => {
                     return;
                 }
 
-                if (room.host?.id && body.hostId !== room.host.id) {
+                if (room.host?.id && !canClientActAsHost(room, body.hostId)) {
                     sendJson(res, 403, {error: 'Only the host can update join requests'});
                     return;
                 }
@@ -265,7 +295,7 @@ const server = http.createServer(async (req, res) => {
                 return;
             }
 
-            if (room.host?.id && body.hostId !== room.host.id) {
+            if (room.host?.id && !canClientActAsHost(room, body.hostId)) {
                 sendJson(res, 403, {error: 'Only the host can update room access'});
                 return;
             }
@@ -283,6 +313,42 @@ const server = http.createServer(async (req, res) => {
             sendJson(res, 200, getRoomMetadata(room, body.hostId, body.accessToken));
         } catch {
             sendJson(res, 400, {error: 'Invalid access update'});
+        }
+        return;
+    }
+
+    const hostTransferMatch = pathname.match(/^\/api\/rooms\/([^/]+)\/host-transfer$/);
+
+    if (req.method === 'POST' && hostTransferMatch) {
+        try {
+            const roomId = sanitizeRoomId(hostTransferMatch[1]);
+            const room = getRoom(roomId);
+            const body = await readJsonBody(req);
+            const targetClientId = sanitizeRoomId(body.targetClientId);
+            const targetClient = getClientById(room, targetClientId);
+
+            if (!room.host?.id || body.hostId !== room.host.id) {
+                sendJson(res, 403, {error: 'Only the room owner can transfer host permissions'});
+                return;
+            }
+
+            if (!targetClient || targetClient.clientId === room.host.id) {
+                sendJson(res, 400, {error: 'Invalid host transfer target'});
+                return;
+            }
+
+            room.hostDelegate = targetClient.user;
+            room.lastTouchedAt = Date.now();
+            persistRoom(roomId, room);
+
+            const event = createActivity('host-transferred', room.host, {
+                targetUser: targetClient.user,
+            });
+            broadcastActivity(room, null, event);
+            broadcastHostState(room);
+            sendJson(res, 200, getRoomMetadata(room, body.hostId, body.accessToken));
+        } catch {
+            sendJson(res, 400, {error: 'Invalid host transfer'});
         }
         return;
     }
@@ -307,6 +373,7 @@ function getRoom(roomId) {
             id: roomId,
             name: storedRoom.name || `Whiteboard / ${roomId.slice(0, 8)}`,
             host: storedRoom.host || null,
+            hostDelegate: storedRoom.hostDelegate || null,
             accessMode: storedRoom.accessMode || 'open',
             boardState: storedRoom.boardState || [],
             clients: new Set(),
@@ -335,6 +402,7 @@ function loadRoom(roomId) {
             schemaVersion: CURRENT_ROOM_SCHEMA_VERSION,
             name: typeof room.name === 'string' ? room.name : undefined,
             host: room.host || null,
+            hostDelegate: room.hostDelegate || null,
             accessMode: ROOM_ACCESS_MODES.has(room.accessMode) ? room.accessMode : 'open',
             approvedClients: Array.isArray(room.approvedClients) ? room.approvedClients : [],
             accessTokens: Array.isArray(room.accessTokens) ? room.accessTokens : [],
@@ -355,6 +423,10 @@ function loadRoom(roomId) {
 }
 
 function persistRoom(roomId, room) {
+    if (room.deleted) {
+        return;
+    }
+
     const filePath = getRoomFile(roomId);
     const tempPath = `${filePath}.${process.pid}.${Date.now()}.${crypto.randomUUID()}.tmp`;
     const backupPath = `${filePath}.bak`;
@@ -362,6 +434,7 @@ function persistRoom(roomId, room) {
         schemaVersion: CURRENT_ROOM_SCHEMA_VERSION,
         name: typeof room.name === 'string' ? room.name : undefined,
         host: room.host || null,
+        hostDelegate: room.hostDelegate || null,
         accessMode: ROOM_ACCESS_MODES.has(room.accessMode) ? room.accessMode : 'open',
         approvedClients: [...room.approvedClients || []],
         accessTokens: [...room.accessTokens || []],
@@ -371,9 +444,18 @@ function persistRoom(roomId, room) {
         operationLog: room.operationLog,
     });
     const writePayload = () => {
+        if (room.deleted) {
+            return;
+        }
+
         fs.writeFile(tempPath, payload, error => {
             if (error) {
                 logWs('room write failed', {roomId, error: error.message});
+                return;
+            }
+
+            if (room.deleted) {
+                fs.unlink(tempPath, () => {});
                 return;
             }
 
@@ -388,6 +470,10 @@ function persistRoom(roomId, room) {
     fs.copyFile(filePath, backupPath, error => {
         if (error && error.code !== 'ENOENT') {
             logWs('room backup failed', {roomId, error: error.message});
+        }
+
+        if (room.deleted) {
+            return;
         }
 
         writePayload();
@@ -479,8 +565,10 @@ function broadcast(room, sender, message) {
 }
 
 function notifyHostJoinRequest(room, request) {
+    const activeHost = getActiveHost(room);
+
     for (const client of room.clients) {
-        if (client.clientId === room.host?.id) {
+        if (client.clientId === activeHost?.id) {
             send(client, {
                 type: 'join-request',
                 request,
@@ -512,6 +600,37 @@ function broadcastActivity(room, sender, event) {
         type: 'activity',
         event,
     });
+}
+
+function broadcastHostState(room) {
+    const metadata = getHostMetadata(room);
+
+    for (const client of room.clients) {
+        send(client, {
+            type: 'room-host-updated',
+            ...metadata,
+            accessMode: room.accessMode || 'open',
+        });
+    }
+}
+
+function deleteRoomData(roomId) {
+    const room = rooms.get(roomId);
+    if (room) {
+        room.deleted = true;
+    }
+
+    rooms.delete(roomId);
+
+    for (const suffix of ['', '.bak']) {
+        try {
+            fs.unlinkSync(`${getRoomFile(roomId)}${suffix}`);
+        } catch (error) {
+            if (error.code !== 'ENOENT') {
+                logWs('room delete failed', {roomId, error: error.message});
+            }
+        }
+    }
 }
 
 function addRoomOperation(room, clientId, message, nextBoardState) {
@@ -693,8 +812,8 @@ function cleanupRooms() {
             }
         }
 
-        if (!room.clients.size && !room.boardState.length && now - (room.lastTouchedAt || now) > MAX_ROOM_IDLE_MS) {
-            rooms.delete(roomId);
+        if (!room.clients.size) {
+            deleteRoomData(roomId);
         }
     }
 }
@@ -745,6 +864,8 @@ server.on('upgrade', (req, socket) => {
         color: parsedUrl.query.color || '#2563eb',
         initials: parsedUrl.query.initials || 'G',
     };
+    const wasHostOwnerOffline = Boolean(room.host?.id === clientId && room.clients.size > 0 && !getClientById(room, clientId));
+
     if (!room.host) {
         room.host = socket.user;
         persistRoom(roomId, room);
@@ -764,7 +885,7 @@ server.on('upgrade', (req, socket) => {
         type: 'init',
         clientId,
         roomName: room.name,
-        host: room.host,
+        ...getHostMetadata(room),
         accessMode: room.accessMode || 'open',
         boardState: room.boardState,
         activityLog: room.activityLog,
@@ -776,6 +897,12 @@ server.on('upgrade', (req, socket) => {
 
     const joinEvent = createActivity('user-joined', socket.user);
     broadcastActivity(room, null, joinEvent);
+
+    if (room.host?.id === clientId) {
+        const hostEvent = createActivity(wasHostOwnerOffline ? 'host-restored' : 'host-joined', socket.user);
+        broadcastActivity(room, null, hostEvent);
+        broadcastHostState(room);
+    }
 
     broadcast(room, socket, {
         type: 'peer-joined',
@@ -1025,6 +1152,8 @@ server.on('upgrade', (req, socket) => {
     });
 
     socket.on('close', () => {
+        const wasHostOwner = room.host?.id === clientId;
+        const wasActiveHost = getActiveHost(room)?.id === clientId;
         room.clients.delete(socket);
         releaseClientObjectLocks(room, clientId);
         logWs('client disconnected', {
@@ -1033,6 +1162,12 @@ server.on('upgrade', (req, socket) => {
             clients: room.clients.size,
             storedObjects: room.boardState.length,
         });
+
+        if (!room.clients.size) {
+            deleteRoomData(roomId);
+            return;
+        }
+
         broadcast(room, socket, {
             type: 'peer-left',
             clientId,
@@ -1046,8 +1181,10 @@ server.on('upgrade', (req, socket) => {
         const leaveEvent = createActivity('user-left', socket.user);
         broadcastActivity(room, socket, leaveEvent);
 
-        if (!room.clients.size && !room.boardState.length) {
-            rooms.delete(roomId);
+        if (wasHostOwner || wasActiveHost) {
+            const hostLeftEvent = createActivity('host-left', socket.user);
+            broadcastActivity(room, socket, hostLeftEvent);
+            broadcastHostState(room);
         }
     });
 });

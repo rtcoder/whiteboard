@@ -210,7 +210,9 @@ function setupLobby({mode = 'home', roomId = null, roomMeta = null} = {}) {
         const boardName = roomMeta?.name || getStoredRoomName(roomId) || `Whiteboard / ${roomId.slice(0, 8)}`;
         lobbyPanel.classList.add('is-join-mode');
         lobbyTitle.textContent = boardName;
-        lobbyDescription.textContent = 'Enter your name to join this whiteboard.';
+        lobbyDescription.textContent = roomMeta?.accessMode === 'closed' && !roomMeta?.hasActiveHost
+            ? 'Enter your name to request access. The host is currently offline, so approval may take longer.'
+            : 'Enter your name to join this whiteboard.';
         joinRoomName.hidden = true;
         newWhiteboardButton.textContent = roomMeta?.accessMode === 'closed' && !roomMeta?.canJoin ? 'Request access' : 'Join room';
     } else {
@@ -234,7 +236,9 @@ function setupLobby({mode = 'home', roomId = null, roomMeta = null} = {}) {
             if (roomMeta?.accessMode === 'closed' && !roomMeta?.canJoin) {
                 newWhiteboardButton.disabled = true;
                 newWhiteboardButton.textContent = 'Waiting for host';
-                joinStatus.textContent = 'Waiting for the host to approve your request.';
+                joinStatus.textContent = roomMeta?.hasActiveHost
+                    ? 'Waiting for the host to approve your request.'
+                    : 'Waiting for host approval. The host is currently offline.';
 
                 try {
                     const request = await requestRoomAccess(roomId, userName);
@@ -340,8 +344,10 @@ async function boot() {
 
     app.roomName = roomMeta?.name || getStoredRoomName(app.roomId) || `Whiteboard / ${app.roomId.slice(0, 8)}`;
     app.roomHost = roomMeta?.host || null;
+    app.activeHost = roomMeta?.activeHost || null;
+    app.hostOnline = Boolean(roomMeta?.hostOnline);
     app.roomAccessMode = roomMeta?.accessMode || 'open';
-    app.isHost = app.roomHost?.id === app.clientId;
+    app.isHost = app.activeHost?.id === app.clientId;
     clear(false);
     initActivityPanel();
     initEvents();

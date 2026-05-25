@@ -44,6 +44,8 @@ export const app = {
     roomId: null,
     roomName: null,
     roomHost: null,
+    activeHost: null,
+    hostOnline: false,
     roomAccessMode: 'open',
     isHost: false,
     clientId: storedClientId,

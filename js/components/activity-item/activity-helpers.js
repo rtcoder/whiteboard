@@ -54,6 +54,22 @@ export function getActivityText(event) {
         return `${user} used ${details.action === 'redo' ? 'redo' : 'undo'}`;
     }
 
+    if (event.kind === ActivityKind.HostJoined) {
+        return `${user} joined as host`;
+    }
+
+    if (event.kind === ActivityKind.HostLeft) {
+        return `${user} left as host`;
+    }
+
+    if (event.kind === ActivityKind.HostTransferred) {
+        return `${user} transferred host permissions to ${details.targetUser?.name || 'another user'}`;
+    }
+
+    if (event.kind === ActivityKind.HostRestored) {
+        return `${user} restored host permissions`;
+    }
+
     if (event.kind === ActivityKind.FillUsed) {
         return `${user} filled ${getObjectLabel(details.objectType)} with color ${details.color}`;
     }

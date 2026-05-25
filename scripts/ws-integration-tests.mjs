@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import {once} from 'node:events';
@@ -10,6 +11,10 @@ const {server} = require('../server.js');
 
 function randomRoomId(prefix) {
     return `${prefix}-${crypto.randomUUID()}`;
+}
+
+function roomFileExists(roomId) {
+    return fs.existsSync(new URL(`../.whiteboard-rooms/${roomId}.json`, import.meta.url));
 }
 
 async function listen() {
@@ -76,6 +81,11 @@ function encodeClientFrame(message) {
     return Buffer.concat([Buffer.from(header), mask, masked]);
 }
 
+function encodeClientCloseFrame() {
+    const mask = crypto.randomBytes(4);
+    return Buffer.concat([Buffer.from([0x88, 0x80]), mask]);
+}
+
 function decodeServerFrame(buffer) {
     if (buffer.length < 2) {
         return null;
@@ -125,10 +135,16 @@ function connectWebSocket(address, {roomId, clientId, name = 'Test User', token 
 
         const client = {
             clientId,
-            close: () => socket.destroy(),
+            close: () => {
+                if (socket.destroyed) {
+                    return;
+                }
+                socket.write(encodeClientCloseFrame());
+                socket.end();
+            },
             send: message => socket.write(encodeClientFrame(message)),
-            waitFor: async (type, timeoutMs = 1500) => {
-                const existingIndex = pending.findIndex(message => message.type === type);
+            waitFor: async (type, timeoutMs = 1500, predicate = () => true) => {
+                const existingIndex = pending.findIndex(message => message.type === type && predicate(message));
                 if (existingIndex >= 0) {
                     const [message] = pending.splice(existingIndex, 1);
                     return message;
@@ -144,6 +160,7 @@ function connectWebSocket(address, {roomId, clientId, name = 'Test User', token 
                     }, timeoutMs);
                     waiters.push({
                         type,
+                        predicate,
                         resolve: message => {
                             clearTimeout(timer);
                             resolveWaiter(message);
@@ -154,7 +171,7 @@ function connectWebSocket(address, {roomId, clientId, name = 'Test User', token 
         };
 
         const handleMessage = message => {
-            const waiterIndex = waiters.findIndex(waiter => waiter.type === message.type);
+            const waiterIndex = waiters.findIndex(waiter => waiter.type === message.type && waiter.predicate(message));
             if (waiterIndex >= 0) {
                 const [waiter] = waiters.splice(waiterIndex, 1);
                 waiter.resolve(message);
@@ -389,7 +406,17 @@ async function run() {
         token: acceptResponse.body.accessToken,
     });
     assert.equal((await guest.waitFor('init')).type, 'init');
-    guest.close();
+
+    const transferResponse = await requestJson(address, 'POST', `/api/rooms/${closedRoomId}/host-transfer`, {
+        hostId: 'closed-host',
+        targetClientId: 'closed-guest',
+    });
+    assert.equal(transferResponse.status, 200);
+    assert.equal(transferResponse.body.activeHost.id, 'closed-host');
+    assert.equal((await guest.waitFor('room-host-updated', 1500, message => message.activeHost?.id === 'closed-host')).activeHost.id, 'closed-host');
+    host.close();
+    const guestHostState = await guest.waitFor('room-host-updated', 1500, message => message.activeHost?.id === 'closed-guest');
+    assert.equal(guestHostState.activeHost.id, 'closed-guest');
 
     const denyResponse = await requestJson(address, 'POST', `/api/rooms/${closedRoomId}/join-requests`, {
         clientId: 'denied-guest',
@@ -401,10 +428,10 @@ async function run() {
         },
     });
     assert.equal(denyResponse.status, 202);
-    const denyRequest = await host.waitFor('join-request');
+    const denyRequest = await guest.waitFor('join-request');
     const rejected = await requestJson(address, 'POST', `/api/rooms/${closedRoomId}/join-requests/${denyRequest.request.id}`, {
         action: 'reject',
-        hostId: 'closed-host',
+        hostId: 'closed-guest',
     });
     assert.equal(rejected.status, 200);
     assert.equal(rejected.body.status, 'rejected');
@@ -414,7 +441,21 @@ async function run() {
         clientId: 'denied-guest',
         name: 'Denied',
     });
-    host.close();
+
+    const restoredHost = await connectWebSocket(address, {
+        roomId: closedRoomId,
+        clientId: 'closed-host',
+        name: 'Host',
+        token: closedRoom.accessToken,
+    });
+    const restoredInit = await restoredHost.waitFor('init');
+    assert.equal(restoredInit.activeHost.id, 'closed-host');
+    assert.equal((await guest.waitFor('room-host-updated', 1500, message => message.activeHost?.id === 'closed-host')).activeHost.id, 'closed-host');
+
+    restoredHost.close();
+    guest.close();
+    await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal(roomFileExists(closedRoomId), false);
 
     await new Promise(resolve => server.close(resolve));
     console.log('WebSocket integration tests passed');
@@ -422,6 +463,7 @@ async function run() {
 
 run().catch(async error => {
     if (server.listening) {
+        server.closeAllConnections?.();
         await new Promise(resolve => server.close(resolve));
     }
     throw error;

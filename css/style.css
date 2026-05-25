@@ -318,6 +318,8 @@ body.lobby-active .lobby {
 }
 
 .host-badge,
+.host-offline-badge,
+.leave-room-button,
 .join-requests-toggle,
 .room-access-control {
     display: inline-flex;
@@ -336,6 +338,20 @@ body.lobby-active .lobby {
     padding: 0 11px;
     border-color: rgba(37, 99, 235, 0.22);
     color: #1d4ed8;
+}
+
+.host-offline-badge {
+    padding: 0 11px;
+    border-color: rgba(245, 158, 11, 0.28);
+    background: #fffbeb;
+    color: #92400e;
+}
+
+.leave-room-button {
+    padding: 0 11px;
+    background: #fff;
+    color: #991b1b;
+    cursor: pointer;
 }
 
 .room-access-control {
@@ -406,6 +422,7 @@ body.lobby-active .lobby {
 }
 
 .host-badge[hidden],
+.host-offline-badge[hidden],
 .join-requests-toggle[hidden],
 .room-access-control[hidden] {
     display: none;
@@ -800,8 +817,109 @@ button.avatar {
     background: #1d4ed8;
 }
 
+.leave-room-button:hover {
+    background: #fef2f2;
+}
+
 .activity-toggle:hover {
     background: var(--accent-soft);
+}
+
+.leave-room-modal {
+    position: fixed;
+    top: 76px;
+    right: 16px;
+    z-index: 42;
+    width: min(360px, calc(100dvw - 32px));
+}
+
+.leave-room-modal[hidden] {
+    display: none;
+}
+
+.leave-room-card {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid rgba(15, 23, 42, 0.14);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 20px 60px rgba(15, 23, 42, 0.18);
+    backdrop-filter: blur(18px);
+}
+
+.leave-room-title {
+    font-size: 15px;
+}
+
+.leave-room-message {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.leave-room-transfer {
+    display: grid;
+    gap: 8px;
+}
+
+.leave-room-transfer[hidden] {
+    display: none;
+}
+
+.leave-room-transfer > span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.leave-room-users {
+    display: grid;
+    gap: 8px;
+}
+
+.leave-room-users button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 36px;
+    padding: 0 10px;
+    border: 1px solid rgba(37, 99, 235, 0.22);
+    border-radius: 10px;
+    background: #eef4ff;
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.leave-room-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.leave-room-actions button {
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.leave-cancel {
+    background: #fff;
+    color: var(--text);
+}
+
+.leave-without-transfer {
+    background: #991b1b;
+    color: #fff;
 }
 
 .activity-panel {
@@ -1304,6 +1422,8 @@ body.drag-import::after {
     .activity-toggle,
     .share-button,
     .host-badge,
+    .host-offline-badge,
+    .leave-room-button,
     .join-requests-toggle,
     .connection-status {
         padding: 0 10px;

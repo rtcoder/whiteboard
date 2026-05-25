@@ -54,7 +54,7 @@ import {app} from './app.js';
 import {ActivityKind} from './enums/activity-kind.js';
 import {ObjectType, TextEditableObjectTypes} from './enums/object-type.js';
 import {DrawnShapeTools, ToolType} from './enums/tool-type.js';
-import {broadcastActivity, broadcastBoardState, sendCursorPosition, sendLaserPosition, sendObjectLockState, sendSelectionState, sendReaction} from './network.js';
+import {broadcastActivity, broadcastBoardState, closeRoomConnection, sendCursorPosition, sendLaserPosition, sendObjectLockState, sendSelectionState, sendReaction, transferHost} from './network.js';
 import {activateMovingToolbar, deactivateMovingToolbar, hideToolbar, moveToolbar, showToolbar} from './toolbar.js';
 import {clampZoomOffset, getCanvasPoint, getCanvasTransform, hexToRgba} from './utils.js';
 
@@ -63,6 +63,13 @@ const linePreview = document.querySelector('.line-width-preview');
 const remoteCursors = document.querySelector('.remote-cursors');
 const presence = document.querySelector('.presence');
 const shareButton = document.querySelector('.share-button');
+const leaveRoomButton = document.querySelector('.leave-room-button');
+const leaveRoomModal = document.getElementById('leaveRoomModal');
+const leaveRoomMessage = leaveRoomModal?.querySelector('.leave-room-message');
+const leaveRoomTransfer = leaveRoomModal?.querySelector('.leave-room-transfer');
+const leaveRoomUsers = leaveRoomModal?.querySelector('.leave-room-users');
+const leaveCancelButton = leaveRoomModal?.querySelector('.leave-cancel');
+const leaveWithoutTransferButton = leaveRoomModal?.querySelector('.leave-without-transfer');
 const fitBoardButton = document.querySelector('.fit-board');
 const zoomSelectionButton = document.querySelector('.zoom-selection');
 const toolTooltip = document.querySelector('.tool-tooltip');
@@ -93,6 +100,7 @@ const selectionActionIds = ['duplicate', 'group', 'ungroup', 'lock', 'unlock', '
 let statusTimer = null;
 let isUpdatingProperties = false;
 let activeTextEditor = null;
+let leavingRoom = false;
 
 function showStatus(message) {
     if (!statusToast) {
@@ -1539,6 +1547,72 @@ async function copyShareLink() {
     }, 1600);
 }
 
+function leaveRoom() {
+    leavingRoom = true;
+    closeRoomConnection();
+    window.location.href = '/';
+}
+
+function getCollaboratorList() {
+    return [...app.collaborators.values()].filter(user => user.id && user.id !== app.clientId);
+}
+
+function closeLeaveRoomModal() {
+    if (leaveRoomModal) {
+        leaveRoomModal.hidden = true;
+    }
+}
+
+function renderTransferTargets(users) {
+    if (!leaveRoomUsers) {
+        return;
+    }
+
+    leaveRoomUsers.replaceChildren();
+    users.forEach(user => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.transferHost = user.id;
+        button.innerHTML = `<span>${user.name}</span><span>${user.initials}</span>`;
+        button.style.setProperty('--avatar-color', user.color);
+        leaveRoomUsers.appendChild(button);
+    });
+}
+
+function openLeaveRoomModal({requiresTransferChoice = false, users = []} = {}) {
+    if (!leaveRoomModal || !leaveRoomMessage || !leaveRoomTransfer) {
+        return;
+    }
+
+    const isLastUser = app.collaborators.size === 0;
+    leaveRoomMessage.textContent = isLastUser
+        ? 'You are the last person in this room. When everyone leaves, the room data is permanently deleted.'
+        : requiresTransferChoice
+            ? 'You are leaving a closed room with other people still present. You can transfer temporary host permissions before leaving.'
+            : 'Leave this room?';
+    leaveRoomTransfer.hidden = !requiresTransferChoice || !users.length;
+    renderTransferTargets(users);
+    leaveRoomModal.hidden = false;
+}
+
+function requestLeaveRoom() {
+    const collaborators = getCollaboratorList();
+    const isLastUser = collaborators.length === 0;
+    const shouldOfferTransfer = app.roomAccessMode === 'closed'
+        && app.roomHost?.id === app.clientId
+        && collaborators.length > 0;
+
+    if (isLastUser || shouldOfferTransfer) {
+        openLeaveRoomModal({
+            requiresTransferChoice: shouldOfferTransfer,
+            users: collaborators,
+        });
+        return;
+    }
+
+    leaveRoom();
+}
+
 export function initEvents() {
     document.addEventListener('contextmenu', e => e.preventDefault());
     initTooltips();
@@ -1568,6 +1642,25 @@ export function initEvents() {
     const boardName = app.roomName || localStorage.getItem(`whiteboard:boardName:${app.roomId}`) || `Whiteboard / ${app.roomId.slice(0, 8)}`;
     document.querySelector('.board-title span:last-child').textContent = boardName;
     shareButton.addEventListener('click', copyShareLink);
+    leaveRoomButton?.addEventListener('click', requestLeaveRoom);
+    leaveCancelButton?.addEventListener('click', closeLeaveRoomModal);
+    leaveWithoutTransferButton?.addEventListener('click', leaveRoom);
+    leaveRoomUsers?.addEventListener('click', async event => {
+        const button = event.target.closest('[data-transfer-host]');
+
+        if (!button) {
+            return;
+        }
+
+        button.disabled = true;
+        try {
+            await transferHost(button.dataset.transferHost);
+            leaveRoom();
+        } catch {
+            button.disabled = false;
+            showStatus('Unable to transfer host permissions');
+        }
+    });
     snapshotClose?.addEventListener('click', closeSnapshotPanel);
     textEditorInput?.addEventListener('keydown', event => {
         if (event.key === 'Escape') {
@@ -1753,7 +1846,17 @@ export function initEvents() {
             importTextObject(text);
         }
     });
-    window.addEventListener('beforeunload', () => {
+    window.addEventListener('beforeunload', event => {
+        const collaborators = getCollaboratorList();
+        const isLastUser = collaborators.length === 0;
+        const shouldWarnHostLeaving = app.roomAccessMode === 'closed'
+            && app.roomHost?.id === app.clientId
+            && collaborators.length > 0;
+
+        if (!leavingRoom && (isLastUser || shouldWarnHostLeaving)) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
         sendObjectLockState([], true);
     });
     window.setInterval(() => {
